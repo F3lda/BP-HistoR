@@ -40,6 +40,7 @@ void audio_volume_changed(int volume) {
 void setup() {
   Serial.begin(9600);
   while(!Serial);
+  Serial.println("Bluetooth started!");
   
   a2dp_sink.set_on_connection_state_changed(connection_state_changed);
   a2dp_sink.set_on_audio_state_changed(audio_state_changed);
@@ -52,7 +53,6 @@ void setup() {
   };
   a2dp_sink.set_pin_config(my_pin_config);
   a2dp_sink.start("MyMusic");
-  Serial.println("Bluetooth started!");
 
   
   int vol = a2dp_sink.get_volume();
@@ -77,4 +77,7 @@ void setup() {
 
 void loop() {
   delay(1000); // do nothing
+  int vol = a2dp_sink.get_volume();
+  Serial.print("Volume: ");
+  Serial.println(vol);
 }

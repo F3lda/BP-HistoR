@@ -213,19 +213,28 @@ void audioStartStop(bool audioisrunning){
 }
 /* AUDIO TASK - end */
 bool AudioPlayerCreateDescription() {
-    if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
-        strcpy(AudioCurrentlyPlayingDescription, AudioArtist);
-        strcat(AudioCurrentlyPlayingDescription, " - ");
-        strcat(AudioCurrentlyPlayingDescription, AudioTitle);
-        strcpy(AudioArtist, "");
-        strcpy(AudioTitle, "");
-        // save to preferences
-        preferences.begin("my-app", false);
-        preferences.putBytes("AU_DESCRIPTION", AudioCurrentlyPlayingDescription, 256);
-        preferences.end();
-        return true;
+    if (strcmp(AudioSelectedSource, "MP_SDcard") == 0 || strcmp(AudioSelectedSource, "MP_Internet") == 0) {
+        if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
+            strcpy(AudioCurrentlyPlayingDescription, AudioArtist);
+            strcat(AudioCurrentlyPlayingDescription, " - ");
+            strcat(AudioCurrentlyPlayingDescription, AudioTitle);
+            strcpy(AudioArtist, "");
+            strcpy(AudioTitle, "");
+        } else {
+            return false;
+        }
+    } else if(strcmp(AudioSelectedSource, "MP_Bluetooth") == 0) {
+        if (strcmp(AudioCurrentlyPlayingDescription, "Bluetooth       ") != 0) {
+            strcpy(AudioCurrentlyPlayingDescription, "Bluetooth       "); // spaces because of LCD display
+        } else {
+            return false;
+        }
     }
-    return false;
+    // save to preferences
+    preferences.begin("my-app", false);
+    preferences.putBytes("AU_DESCRIPTION", AudioCurrentlyPlayingDescription, 256);
+    preferences.end();
+    return true;
 }
 
 void webServer_sendContentJavascriptSetElementChecked(const char elementId[])
@@ -286,6 +295,20 @@ bool I2CaddressIsActive(byte address) {
     Wire.begin();
     Wire.beginTransmission(address);
     return !Wire.endTransmission();
+}
+
+void AudioStopAllSources() {
+    // Stop SDcard + Internet
+    audioStopSong();
+    // Stop Bluetooth
+    Wire.beginTransmission(BP_ESP_SLAVE_ID);
+    Wire.write(0);
+    Wire.write(0);
+    Wire.write("BO");
+    Wire.write(0);
+    Wire.endTransmission();
+    // Stop radio
+    //TODO
 }
 
 
@@ -654,6 +677,9 @@ void setup() {
                     if (webServer.hasArg("MPselected")) {
                         webServer_getArgValue("MPselected").toCharArray(temp_str, 31);
                         preferences.putBytes("AU_SOURCE", temp_str, 31);
+                        if (strcmp(AudioSelectedSource, temp_str) != 0) { // source changed -> stop all
+                            AudioStopAllSources();
+                        }
                         strcpy(AudioSelectedSource, temp_str);
                     }
                     // Random play
@@ -740,7 +766,19 @@ void setup() {
                         strcpy(AudioCurrentlyPlayingDescription, AudioLastPlayedTrack);
                         audioConnecttohost(AudioLastInternetURL);
                     } else if (source == "MP_Bluetooth") {
-
+                        Wire.beginTransmission(BP_ESP_SLAVE_ID);
+                        Wire.write(0);
+                        Wire.write(0);
+                        Wire.write("BN");
+                        Wire.write(AudioBluetoothName);
+                        Wire.endTransmission();
+                        delay(10);
+                        Wire.beginTransmission(BP_ESP_SLAVE_ID);
+                        Wire.write(0);
+                        Wire.write(0);
+                        Wire.write("BO");
+                        Wire.write(1);
+                        Wire.endTransmission();
                     } else if (source == "MP_Radio") {
                     
                     }
@@ -752,7 +790,12 @@ void setup() {
                     } else if (source == "MP_Internet") {
                         audioStopSong();
                     } else if (source == "MP_Bluetooth") {
-                      
+                        Wire.beginTransmission(BP_ESP_SLAVE_ID);
+                        Wire.write(0);
+                        Wire.write(0);
+                        Wire.write("BO");
+                        Wire.write(0);
+                        Wire.endTransmission();
                     } else if (source == "MP_Radio") {
                     
                     }
@@ -838,6 +881,7 @@ void setup() {
             Serial.print("PLAY AUDIO: ");
             Serial.println(path);
 
+            AudioStopAllSources();
             AudioSDcardPlayTrack(path);
 
             // redirect
@@ -1004,6 +1048,11 @@ void loop() {
                 Serial.println(APssid);
                 Serial.println(APpassword);
                 WiFi.softAP(APssid, APpassword);
+                APactive = true;
+
+                lcd.setCursor(0, 0);
+                lcd.print("AP: ");
+                lcd.print(APssid);
             }
         }
         if(WiFi.status() != WIFIstatus){
@@ -1028,12 +1077,17 @@ void loop() {
         Serial.println("WiFi shield not found!");
     }
 
-    if (AudioPlayerCreateDescription()) {
+    if (AudioPlayerCreateDescription()) { // if description changed
         lcd.setCursor(0, 1);
         lcd.print(AudioCurrentlyPlayingDescription);
-        lcd.setCursor(0, 0);
-        lcd.print("IP:");
-        lcd.print(WiFi.localIP());
+        lcd.setCursor(0, 0); // TODO check if AP or IP
+        if (APactive) {
+            lcd.print("AP: ");
+            lcd.print(APssid);
+        } else {
+            lcd.print("IP:");
+            lcd.print(WiFi.localIP());
+        }
         Serial.println("LCD display");
     }
 
