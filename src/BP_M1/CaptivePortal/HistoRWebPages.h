@@ -35,11 +35,11 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
         <input type="radio" id="MP_Internet" name="MPselected" value="MP_Internet">
         <label for="MP_Internet">Internet</label> - <label for="INT_URL">URL: </label><input type="text" id="INT_URL" name="INT_URL" value="https://ice5.abradio.cz/hitvysocina128.mp3" size="40"><br>
         <input type="radio" id="MP_Bluetooth" name="MPselected" value="MP_Bluetooth">
-        <label for="MP_Bluetooth">Bluetooth</label><!--- - <input type="submit" value="on/off">---><br>
+        <label for="MP_Bluetooth">Bluetooth</label> - <label for="BT_NAME">name: </label><input type="text" id="BT_NAME" name="BT_NAME" value="HistoR" size="10"><!--- - <input type="submit" value="on/off">---><br>
         <input type="radio" id="MP_Radio" name="MPselected" value="MP_Radio">
         <label for="MP_Radio">Radio</label> - <label for="R_FREQ">frequency: </label><input type="text" id="R_FREQ" name="R_FREQ" value="99.7" size="5"><br>
         <label for="MP_AUTO" title="After device start, automatically starts last audio source">Autoplay: </label>
-        <input type="checkbox" id="MP_AUTO" name="MP_AUTO" value="MPautoplay"><br>
+        <input type="checkbox" id="MP_AUTO" name="MP_AUTO" value="MPautoplay"> - <label for="MP_VOLUME">Volume: </label><input type="number" id="MP_VOLUME" name="MP_VOLUME" min="0" max="21" value="" size="5"/><br>
         <input type="submit" id="MPSavePlay" value="Save & Play">
         <input type="submit" id="MPSave" value="Save">
         <input type="submit" id="MPStop" value="Stop"><br>

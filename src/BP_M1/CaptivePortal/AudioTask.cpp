@@ -166,11 +166,11 @@ bool audioConnecttoSD(const char* filename){
 //                                  E V E N T S                                           *
 //*****************************************************************************************
 
-void audioStartStop(bool audioisrunning){
+/*void audioStartStop(bool audioisrunning){
     Serial.print("audioisrunning    ");Serial.println(audioisrunning);
     Serial.print("audioStartStop() is running on core ");
     Serial.println(xPortGetCoreID());
-}
+}*/
 void audio_info(const char *info){
     Serial.print("info        "); Serial.println(info);
 }
@@ -182,10 +182,10 @@ void audio_showstation(const char *info){
 }
 void audio_showstreamtitle(const char *info){
     Serial.print("streamtitle ");Serial.println(info);// radio info
-}*/
+}
 void audio_eof_mp3(const char *info){  //end of file
     Serial.print("eof_mp3     ");Serial.println(info);
-}
+}*/
 void audio_bitrate(const char *info){
     Serial.print("bitrate     ");Serial.println(info);
 }

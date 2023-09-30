@@ -65,14 +65,47 @@ char AudioCurrentlyPlayingDescription[256] = {0};
 char AudioSelectedSource[32] = "MP_SDcard";
 char AudioLastPlayedTrack[256] = {0};
 bool AudioRandomPlay = false;
+bool AudioRepeatAll = false;
+bool AudioRepeatOne = false;
 char AudioLastInternetURL[256] = {0};
+char AudioBluetoothName[256] = {0};
 char AudioLastRadioFrequency[8] = {0};
 bool AudioAutoPlay = false;
+char AudioVolume = 10; // TODO save UI preferences
 
 bool AudioFMtransActive = false;
 char AudioFMtransFrequency[8] = {0};
 bool AudioAMtransActive = false;
 char AudioAMtransFrequency[8] = {0};
+
+
+char TrackPath[512] = {0};
+char EOFTrackPath[256] = {0};
+void AudioSDcardPlayTrack(void *parameter)
+{
+    if(parameter != NULL){
+        strcpy(TrackPath, (const char *)parameter);
+    } else {
+        //delay(3000);
+    }
+    Serial.print("Music player: Playing new track: ");
+    Serial.println(TrackPath);
+    
+    audioConnecttoSD(TrackPath);
+    
+    strcpy(AudioSelectedSource, "MP_SDcard"); // set SDcard audio source
+    strcpy(AudioLastPlayedTrack, TrackPath);
+    strcpy(AudioCurrentlyPlayingDescription, TrackPath);
+    
+    preferences.begin("my-app", false);
+    preferences.putBytes("AU_SOURCE", AudioSelectedSource, 32);
+    preferences.putBytes("AU_LAST_TRACK", AudioLastPlayedTrack, 255);
+    preferences.end();
+    
+    TrackPath[0] = '\0';
+}
+
+
 
 
 /* AUDIO TASK */
@@ -99,6 +132,83 @@ void audio_showstreamtitle(const char *info){
     Serial.print("streamtitle ");Serial.println(info);// radio info
     strncpy(AudioTitle, info, 127);
 }
+void listDirFind(fs::FS &fs, const char * dirname, uint8_t levels, const char * filename){
+  
+    Serial.print("listDirFind() is running on core ");
+    Serial.println(xPortGetCoreID());
+    
+    Serial.printf("Listing directory: %s\n", dirname);
+    
+    File root = fs.open(dirname);
+    if(!root){
+        Serial.println("Failed to open directory");
+        return;
+    }
+    if(!root.isDirectory()){
+        Serial.println("Not a directory");
+        return;
+    }
+    
+    File file = root.openNextFile();
+    while(file){
+        
+        if(file.isDirectory()){
+            Serial.print("  DIR : ");
+            Serial.println(file.name());
+            if(levels){
+                listDir(fs, file.path(), levels -1);
+            }
+        } else {
+            Serial.print("  FILE: ");
+            Serial.print(file.name());
+            Serial.print("  SIZE: ");
+            Serial.println(file.size());
+
+            if(strcmp(filename, file.name()) == 0) {
+                file = root.openNextFile();
+                if(file){
+                    strcpy(TrackPath, dirname);
+                    strcat(TrackPath, "/");
+                    strcat(TrackPath, file.name());
+                    
+                    root.close();
+                    
+                } else {
+                    Serial.println("Music player: end of album/folder!");
+                }
+            }
+        }
+        file = root.openNextFile();
+    }
+}
+void audio_eof_mp3(const char *info){  //end of file
+
+    Serial.print("eof_mp3     ");Serial.println(info);
+    strncpy(EOFTrackPath, info, 255);
+    
+}
+void audioStartStop(bool audioisrunning){
+    Serial.print("audioisrunning    ");Serial.println(audioisrunning);
+    Serial.print("audioStartStop() is running on core ");
+    Serial.println(xPortGetCoreID());
+
+    if(audioisrunning == false) {
+        char AudioLastPlayedTrackPath[256] = {0};
+        strcpy(AudioLastPlayedTrackPath, AudioLastPlayedTrack);
+        int i = strlen(AudioLastPlayedTrackPath);
+        for(; i > 0; i--) {
+            if(AudioLastPlayedTrackPath[i] == '/') {
+                AudioLastPlayedTrackPath[i] = '\0';
+                i = -1;
+            }
+        }
+        if(i == 0) {
+            AudioLastPlayedTrackPath[1] = '\0';
+        }
+        
+        listDirFind(SD, AudioLastPlayedTrackPath, 0, EOFTrackPath);
+    }
+}
 /* AUDIO TASK - end */
 bool AudioPlayerCreateDescription() {
     if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
@@ -107,22 +217,30 @@ bool AudioPlayerCreateDescription() {
         strcat(AudioCurrentlyPlayingDescription, AudioTitle);
         strcpy(AudioArtist, "");
         strcpy(AudioTitle, "");
-        // TODO save to preferences
+        // save to preferences
+        preferences.begin("my-app", false);
+        preferences.putBytes("AU_DESCRIPTION", AudioCurrentlyPlayingDescription, 256);
+        preferences.end();
         return true;
     }
     return false;
 }
 
+void webServer_sendContentJavascriptSetElementChecked(const char elementId[])
+{
+      webServer.sendContent(F("document.getElementById('"));
+      webServer.sendContent(elementId);
+      webServer.sendContent(F("').checked = true;\n"));
+}
 
 
-
-void webServer_sendContentJavascriptSetElement(const char elementId[], char value[])
+void webServer_sendContentJavascriptSetElementValue(const char elementId[], char value[])
 {
   webServer.sendContent(F("document.getElementById('"));
   webServer.sendContent(elementId);
-  webServer.sendContent(F("').value = '"));
+  webServer.sendContent(F("').value = \""));
   webServer.sendContent(value);
-  webServer.sendContent(F("';\n"));
+  webServer.sendContent(F("\";\n"));
 }
 
 String webServer_getArgValue(String argname) 
@@ -282,12 +400,56 @@ void setup() {
     */
     preferences.begin("my-app", false);// Note: Namespace name is limited to 15 chars.
     //preferences.clear();// Remove all preferences under the opened namespace
+    // WIFI
     preferences.getBytes("WIFISSID", WIFIssid, 64);
     preferences.getBytes("WIFIPASSWORD", WIFIpassword, 64);
     preferences.getBytes("APSSID", APssid, 64);
     preferences.getBytes("APPASSWORD", APpassword, 64);
     APactive = preferences.getBool("APACTIVE", APactive);
+    // Audio
+    preferences.getBytes("AU_DESCRIPTION", AudioCurrentlyPlayingDescription, 256);
+    preferences.getBytes("AU_SOURCE", AudioSelectedSource, 32);
+    preferences.getBytes("AU_LAST_TRACK", AudioLastPlayedTrack, 256);
+    AudioRandomPlay = preferences.getBool("AU_RANDOM_PLAY", AudioRandomPlay);
+    AudioRepeatAll = preferences.getBool("AU_REPEAT_ALL", AudioRepeatAll);
+    AudioRepeatOne = preferences.getBool("AU_REPEAT_ONE", AudioRepeatOne);
+    preferences.getBytes("AU_LAST_URL", AudioLastInternetURL, 256);
+    preferences.getBytes("AU_BT_NAME", AudioBluetoothName, 256);
+    preferences.getBytes("AU_LAST_RADIO", AudioLastRadioFrequency, 8);
+    AudioAutoPlay = preferences.getBool("AU_AUTOPLAY", AudioAutoPlay);
+    AudioVolume = preferences.getChar("AU_VOLUME", AudioVolume);
+    // Transmitters
+    AudioFMtransActive = preferences.getBool("AU_FM_ACTIVE", AudioFMtransActive);
+    preferences.getBytes("AU_FM_FREQ", AudioFMtransFrequency, 8);
+    AudioAMtransActive = preferences.getBool("AU_AM_ACTIVE", AudioAMtransActive);
+    preferences.getBytes("AU_AM_FREQ", AudioAMtransFrequency, 8);
+    
     preferences.end();
+
+
+
+
+    /* LCD Display */
+    if(I2CaddressIsActive(0x27)) {
+        Serial.println("LCD display - start");
+        // inicializace LCD
+        lcd.begin();
+        // zapnutí podsvícení
+        lcd.backlight();
+        
+        lcd.setCursor(0, 1);
+        lcd.print(AudioCurrentlyPlayingDescription);
+        lcd.setCursor(0, 0);
+        lcd.print("IP:");
+        lcd.print(WiFi.localIP());
+        Serial.println("LCD display");
+    } else {
+        Serial.println("LCD display - error: not found!");
+    }
+    Serial.println("--------------------");
+
+
+    
 
 
     /* SD CARD */
@@ -297,6 +459,8 @@ void setup() {
     SPI.setFrequency(1000000);
     if(!SD.begin(SD_CS)){
         Serial.println("Card Mount Failed");
+        lcd.setCursor(0, 1);
+        lcd.print("Card Mount Fail!");
     } else {
         Serial.println("Card Mount OK");
     }
@@ -325,31 +489,13 @@ void setup() {
     /* AUDIO */
     audioInit();
     delay(1500);
-    audioSetVolume(15);
+    audioSetVolume(AudioVolume); // 0...21
     Serial.print("Current volume is: ");
     Serial.println(audioGetVolume());
     Serial.println("--------------------");
 
 
         
-    /* LCD Display */
-    if(I2CaddressIsActive(0x27)) {
-        Serial.println("LCD display - start");
-        // inicializace LCD
-        lcd.begin();
-        // zapnutí podsvícení
-        lcd.backlight();
-        
-        lcd.setCursor(0, 1);
-        lcd.print(AudioCurrentlyPlayingDescription);
-        lcd.setCursor(0, 0);
-        lcd.print("IP:");
-        lcd.print(WiFi.localIP());
-        Serial.println("LCD display");
-    } else {
-        Serial.println("LCD display - error: not found!");
-    }
-    Serial.println("--------------------");
 
 
 
@@ -418,15 +564,30 @@ void setup() {
         webServer.send(200, "text/html", "");
         webServer.sendContent(FSH(HistoRHomePage));
         webServer.sendContent(F("<script>\n"));
-        webServer_sendContentJavascriptSetElement("WIFI_SSID", WIFIssid);
-        webServer_sendContentJavascriptSetElement("WIFI_PASSWORD", WIFIpassword);
-        webServer_sendContentJavascriptSetElement("AP_SSID", APssid);
-        webServer_sendContentJavascriptSetElement("AP_PASSWORD", APpassword);
+        // WIFI
+        webServer_sendContentJavascriptSetElementValue("WIFI_SSID", WIFIssid);
+        webServer_sendContentJavascriptSetElementValue("WIFI_PASSWORD", WIFIpassword);
+        webServer_sendContentJavascriptSetElementValue("AP_SSID", APssid);
+        webServer_sendContentJavascriptSetElementValue("AP_PASSWORD", APpassword);
         if (APactive) {webServer.sendContent(F("document.getElementById('AP_ACTIVE').checked = true;\n"));}
-        webServer.sendContent(F("document.getElementById('"));
-        webServer.sendContent(AudioSelectedSource);
-        webServer.sendContent(F("').checked = true;\n"));
-        if (AudioCurrentlyPlayingDescription[0] != '\0') {webServer_sendContentJavascriptSetElement("Mplayer", AudioCurrentlyPlayingDescription);}
+        // Audio
+        if (AudioCurrentlyPlayingDescription[0] != '\0') {webServer_sendContentJavascriptSetElementValue("Mplayer", AudioCurrentlyPlayingDescription);}
+        Serial.println(AudioSelectedSource);
+        webServer_sendContentJavascriptSetElementChecked(AudioSelectedSource);
+        if (AudioRandomPlay) {webServer_sendContentJavascriptSetElementChecked("MP_RANDOM");}
+        if (AudioRepeatAll) {webServer_sendContentJavascriptSetElementChecked("MP_REPEAT_ALL");}        
+        if (AudioRepeatOne) {webServer_sendContentJavascriptSetElementChecked("MP_REPEAT_ONE");}
+        if (AudioLastInternetURL[0] != '\0') {webServer_sendContentJavascriptSetElementValue("INT_URL", AudioLastInternetURL);}
+        if (AudioBluetoothName[0] != '\0') {webServer_sendContentJavascriptSetElementValue("BT_NAME", AudioBluetoothName);}
+        if (AudioLastRadioFrequency[0] != '\0') {webServer_sendContentJavascriptSetElementValue("R_FREQ", AudioLastRadioFrequency);}
+        if (AudioAutoPlay) {webServer_sendContentJavascriptSetElementChecked("MP_AUTO");}
+        char str[5]; sprintf(str, "%d", (int)AudioVolume); webServer_sendContentJavascriptSetElementValue("MP_VOLUME", str);
+
+        if (AudioFMtransActive) {webServer_sendContentJavascriptSetElementChecked("FM_ACTIVE");}
+        if (AudioFMtransFrequency[0] != '\0') {webServer_sendContentJavascriptSetElementValue("FM_FREQ", AudioFMtransFrequency);}
+        if (AudioAMtransActive) {webServer_sendContentJavascriptSetElementChecked("AM_ACTIVE");}
+        //if (AudioAMtransFrequency[0] != '\0') {webServer_sendContentJavascriptSetElementValue("", AudioAMtransFrequency);}
+        
         webServer.sendContent(F("</script>\n"));
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
@@ -486,15 +647,85 @@ void setup() {
                 
                 if(cmd2 == "SAVEPLAY" || cmd2 == "SAVE") { // SAVE
                     char temp_str[256] = {0};
+                    String bin = "";
+                    // SOURCE
                     if (webServer.hasArg("MPselected")) {
                         webServer_getArgValue("MPselected").toCharArray(temp_str, 31);
+                        preferences.putBytes("AU_SOURCE", temp_str, 31);
                         strcpy(AudioSelectedSource, temp_str);
-                        // TODO save to preferences
                     }
+                    // Random play
+                    if (webServer.hasArg("MP_RANDOM")) {
+                        bin = webServer_getArgValue("MP_RANDOM");
+                        if (bin == "true") {
+                            preferences.putBool("AU_RANDOM_PLAY", true);
+                            AudioRandomPlay = true;
+                        } else if (bin == "false") {
+                            preferences.putBool("AU_RANDOM_PLAY", false);
+                            AudioRandomPlay = false;
+                        }
+                    }
+                    // Repeat all
+                    if (webServer.hasArg("MP_REPEAT_ALL")) {
+                        bin = webServer_getArgValue("MP_REPEAT_ALL");
+                        if (bin == "true") {
+                            preferences.putBool("AU_REPEAT_ALL", true);
+                            AudioRepeatAll = true;
+                        } else if (bin == "false") {
+                            preferences.putBool("AU_REPEAT_ALL", false);
+                            AudioRepeatAll = false;
+                        }
+                    }
+                    // Repeat one
+                    if (webServer.hasArg("MP_REPEAT_ONE")) {
+                        bin = webServer_getArgValue("MP_REPEAT_ONE");
+                        if (bin == "true") {
+                            preferences.putBool("AU_REPEAT_ONE", true);
+                            AudioRepeatOne = true;
+                        } else if (bin == "false") {
+                            preferences.putBool("AU_REPEAT_ONE", false);
+                            AudioRepeatOne = false;
+                        }
+                    }
+                    // Internet URL
                     if (webServer.hasArg("INT_URL")) {
                         webServer_getArgValue("INT_URL").toCharArray(temp_str, 255);
+                        preferences.putBytes("AU_LAST_URL", temp_str, 255);
                         strcpy(AudioLastInternetURL, temp_str);
-                        // TODO save to preferences
+                    }
+                    // Bluettoth name
+                    if (webServer.hasArg("BT_NAME")) {
+                        webServer_getArgValue("BT_NAME").toCharArray(temp_str, 255);
+                        preferences.putBytes("AU_BT_NAME", temp_str, 255);
+                        strcpy(AudioBluetoothName, temp_str);
+                    }
+                    // Radio frequency
+                    if (webServer.hasArg("R_FREQ")) {
+                        webServer_getArgValue("R_FREQ").toCharArray(temp_str, 8);
+                        preferences.putBytes("AU_LAST_RADIO", temp_str, 8);
+                        strcpy(AudioLastRadioFrequency, temp_str);
+                    }
+                    // Autoplay
+                    if (webServer.hasArg("MP_AUTO")) {
+                        bin = webServer_getArgValue("MP_AUTO");
+                        if (bin == "true") {
+                            preferences.putBool("AU_AUTOPLAY", true);
+                            AudioAutoPlay = true;
+                        } else if (bin == "false") {
+                            preferences.putBool("AU_AUTOPLAY", false);
+                            AudioAutoPlay = false;
+                        }
+                    }
+                    // Audio Volume
+                    if (webServer.hasArg("MP_VOLUME")) {
+                        webServer_getArgValue("MP_VOLUME").toCharArray(temp_str, 3);
+                        int vol = 0;
+                        sscanf(temp_str, "%d", &vol);
+                        if (AudioVolume != (char) vol) {
+                            AudioVolume = (char) vol;
+                            preferences.putChar("AU_VOLUME", AudioVolume);
+                            audioSetVolume(vol);
+                        }
                     }
                 }
                 
@@ -507,7 +738,7 @@ void setup() {
                         strcpy(AudioCurrentlyPlayingDescription, AudioLastPlayedTrack);
                         audioConnecttohost(AudioLastInternetURL);
                     } else if (source == "MP_Bluetooth") {
-                    
+
                     } else if (source == "MP_Radio") {
                     
                     }
@@ -519,14 +750,42 @@ void setup() {
                     } else if (source == "MP_Internet") {
                         audioStopSong();
                     } else if (source == "MP_Bluetooth") {
-                    
+                      
                     } else if (source == "MP_Radio") {
                     
                     }
                 }
             
             } else if (cmd == "TRANS") { // transmitters
-            
+                // FM active
+                if (webServer.hasArg("FM_ACTIVE")) {
+                    cmd = webServer_getArgValue("FM_ACTIVE");
+                    if (cmd == "true") {
+                        preferences.putBool("AU_FM_ACTIVE", true);
+                        AudioFMtransActive = true;
+                    } else if (cmd == "false") {
+                        preferences.putBool("AU_FM_ACTIVE", false);
+                        AudioFMtransActive = false;
+                    }
+                }
+                // FM frequency
+                if (webServer.hasArg("FM_FREQ")) {
+                    char temp_str[8] = {0};
+                    webServer_getArgValue("FM_FREQ").toCharArray(temp_str, 8);
+                    preferences.putBytes("AU_FM_FREQ", temp_str, 8);
+                    strcpy(AudioFMtransFrequency, temp_str);
+                }
+                // AM active
+                if (webServer.hasArg("AM_ACTIVE")) {
+                    cmd = webServer_getArgValue("AM_ACTIVE");
+                    if (cmd == "true") {
+                        preferences.putBool("AU_AM_ACTIVE", true);
+                        AudioAMtransActive = true;
+                    } else if (cmd == "false") {
+                        preferences.putBool("AU_AM_ACTIVE", false);
+                        AudioAMtransActive = false;
+                    }
+                }
             
             } else if (cmd == "DESC") { // Currently playing description
               
@@ -576,11 +835,9 @@ void setup() {
             webServer_getArgValue("PLAY").toCharArray(path, 255);
             Serial.print("PLAY AUDIO: ");
             Serial.println(path);
-            audioConnecttoSD(path);
-            strcpy(AudioSelectedSource, "MP_SDcard"); // set SDcard audio source
-            strcpy(AudioLastPlayedTrack, path);
-            strcpy(AudioCurrentlyPlayingDescription, path);
-            
+
+            AudioSDcardPlayTrack(path);
+
             // redirect
             webServer.sendHeader("Location", "./", true);
             webServer.send(302, "text/plain", "");
@@ -599,10 +856,15 @@ void setup() {
         webServer.setContentLength(CONTENT_LENGTH_UNKNOWN); // https://www.esp8266.com/viewtopic.php?p=73204
         // here begin chunked transfer
         webServer.send(200, "text/html", "");
+
+        webServer.sendContent(F("<!DOCTYPE html><html><head><title>HistoR - Music player - select track</title></head><body>"));
         
         listDir(SD, path, 0);
 
         webServer.sendContent(F("</table><br><br><a href='./'>close</a>\n"));
+        
+        webServer.sendContent(F("</body></html>\n"));
+        
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
     });
@@ -616,7 +878,8 @@ void setup() {
         // here begin chunked transfer
         webServer.send(200, "text/html", "");
 
-    
+        webServer.sendContent(F("<!DOCTYPE html><html><head><title>HistoR - WIFI SCANNER</title></head><body>"));
+        
         Serial.println("Scan start");
         webServer.sendContent(F("Scan start\n"));
     
@@ -707,11 +970,16 @@ void setup() {
 
   
         webServer.sendContent(F("<br><br><a href='javascript:window.close();'>close</a>\n"));
+        
+        webServer.sendContent(F("</body></html>\n"));
+        
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
     });
   
     webServer.begin();
+
+    //TODO autoplay
 }
 
 
@@ -765,5 +1033,10 @@ void loop() {
         lcd.print("IP:");
         lcd.print(WiFi.localIP());
         Serial.println("LCD display");
+    }
+
+    if (TrackPath[0] != '\0') {
+      audioStopSong();
+      AudioSDcardPlayTrack(NULL);
     }
 }
