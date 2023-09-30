@@ -13,6 +13,8 @@
 #include "AudioTask.h"
 
 
+#define BP_ESP_SLAVE_ID 8
+
 
 
 // SD card - Digital I/O used
@@ -1036,7 +1038,32 @@ void loop() {
     }
 
     if (TrackPath[0] != '\0') {
-      audioStopSong();
-      AudioSDcardPlayTrack(NULL);
+        audioStopSong();
+        AudioSDcardPlayTrack(NULL);
+    }
+
+
+
+    static unsigned long Timer1000 = 0;
+    if ((millis() > (Timer1000 + 1000) || Timer1000 == 0)) {
+
+        // Send
+        static byte x = 0;
+        Wire.beginTransmission(BP_ESP_SLAVE_ID); // transmit to device #8
+        Wire.write("x is ");        // sends five bytes
+        Wire.write(x++);              // sends one byte  
+        Wire.endTransmission();    // stop transmitting
+
+        // Receive
+        Wire.requestFrom(BP_ESP_SLAVE_ID, 6);    // request 6 bytes from peripheral device #8
+        while (Wire.available()) { // peripheral may send less than requested
+    
+            char c = Wire.read(); // receive a byte as character
+            Serial.print(c);         // print the character
+        }
+        Serial.println();
+
+        
+        Timer1000 = millis();
     }
 }

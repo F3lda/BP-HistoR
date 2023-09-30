@@ -32,11 +32,18 @@ void audio_state_changed(esp_a2d_audio_state_t state, void *ptr){
   Serial.println(a2dp_sink.to_str(state));
 }
 
+void audio_volume_changed(int volume) {
+  Serial.print("Volume: ");
+  Serial.println(volume);
+}
 
 void setup() {
   Serial.begin(9600);
+  while(!Serial);
+  
   a2dp_sink.set_on_connection_state_changed(connection_state_changed);
   a2dp_sink.set_on_audio_state_changed(audio_state_changed);
+  a2dp_sink.set_on_volumechange(audio_volume_changed);
   i2s_pin_config_t my_pin_config = {
     .bck_io_num = 26,
     .ws_io_num = 25,
@@ -46,6 +53,25 @@ void setup() {
   a2dp_sink.set_pin_config(my_pin_config);
   a2dp_sink.start("MyMusic");
   Serial.println("Bluetooth started!");
+
+  
+  int vol = a2dp_sink.get_volume();
+  Serial.print("Volume: ");
+  Serial.println(vol);
+  //a2dp_sink.set_volume(127);// uint8_t (range 0 - 255) (0 - 127)
+  /* 
+    play();
+    pause();
+    stop();
+    next();
+    previous();
+    fast_forward();
+    rewind();
+
+    is_connected ()
+
+    end(bool release_memory=false); // ends the I2S bluetooth sink with the indicated name - if you release the memory a future start is not possible 
+ */
 }
 
 
