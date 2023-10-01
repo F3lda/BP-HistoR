@@ -1,23 +1,23 @@
 #include <Wire.h>
 #define BP_ESP_SLAVE_ID 8
 
-#include <Si4703_Breakout.h>
+#include <Si4703_Breakout.h> // FM radio
+
+#include <Adafruit_Si4713.h>// FM transmitter
+
+#include <BluetoothA2DPSink.h> // Bluetooth
 
 
 
+
+/* Bluetooth */
 // ==> Example A2DP Receiver which uses connection_state an audio_state callback
 //Don’t install the 2.0 version. At the time of writing this tutorial, we recommend using the legacy version (1.8.19) with the ESP32. While version 2 works well with Arduino, there are still some bugs and some features that are not supported yet for the ESP32.
 //https://randomnerdtutorials.com/getting-started-with-esp32/
 
-#include <BluetoothA2DPSink.h>
-
-
-
-
-
-
 BluetoothA2DPSink a2dp_sink;
 bool BTon = false;
+char BTname[256] = "MyMusic";
 
 // for esp_a2d_connection_state_t see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/bluetooth/esp_a2dp.html#_CPPv426esp_a2d_connection_state_t
 void connection_state_changed(esp_a2d_connection_state_t state, void *ptr){ // {"Disconnected", "Connecting", "Connected", "Disconnecting"}
@@ -35,12 +35,11 @@ void audio_volume_changed(int volume) {
 }
 
 
-char BTname[256] = "MyMusic";
 
 
 
 
-
+/* FM radio */
 #define resetPin 18
 #define SDIO 21
 #define SCLK 22
@@ -55,6 +54,15 @@ void RadioDisplayInfo()
    Serial.print("Channel:"); Serial.print(channel); 
    Serial.print(" Volume:"); Serial.println(volume); 
 }
+
+
+
+
+
+/* FM transmitter */
+#define RESETPIN 5
+#define FMSTATION 9240      // 10230 == 102.30 MHz
+Adafruit_Si4713 FMtrans = Adafruit_Si4713(RESETPIN);
 
 
 
@@ -91,6 +99,54 @@ void setup() {
     Serial.println("Volume 0!");
     radio.setVolume(0);
 
+
+
+
+
+
+    /* FM transmitter */
+    if (!FMtrans.begin()) {  // begin with address 0x63 (CS high default)
+        Serial.println("Couldn't find radio?");
+    }
+    delay(2000);  // maybe needed for initial power???
+  
+    // Uncomment to scan power of entire range from 87.5 to 108.0 MHz
+    /*
+    for (uint16_t f  = 8750; f<10800; f+=10) {
+     radio.readTuneMeasure(f);
+     Serial.print("Measuring "); Serial.print(f); Serial.print("...");
+     radio.readTuneStatus();
+     Serial.println(radio.currNoiseLevel);
+     }*/
+     
+  
+    Serial.print("\nSet TX power");
+    FMtrans.setTXpower(115);  // dBuV, 88-115 max
+  
+    Serial.print("\nTuning into "); 
+    Serial.print(FMSTATION/100); 
+    Serial.print('.'); 
+    Serial.println(FMSTATION % 100);
+    FMtrans.tuneFM(FMSTATION); // 102.3 mhz
+  
+    // This will tell you the status in case you want to read it from the chip
+    FMtrans.readTuneStatus();
+    Serial.print("\tCurr freq: "); 
+    Serial.println(FMtrans.currFreq);
+    Serial.print("\tCurr freqdBuV:"); 
+    Serial.println(FMtrans.currdBuV);
+    Serial.print("\tCurr ANTcap:"); 
+    Serial.println(FMtrans.currAntCap);
+  
+    // begin the RDS/RDBS transmission
+    FMtrans.beginRDS();
+    FMtrans.setRDSstation((char *)"HistoR"); // max 8 chars
+    FMtrans.setRDSbuffer((char *)"HistoRadio FM Live!");
+    Serial.println("RDS on!");  
+
+
+    
+
   
 
     Serial.println("ESP slave ON!");
@@ -99,8 +155,39 @@ void setup() {
 
 
 void loop() {
-    delay(100);
+    // FM transmitter
+    Serial.print("Tuned into "); 
+    Serial.print(FMSTATION/100); 
+    Serial.print('.'); 
+    Serial.print(FMSTATION % 100);
+    Serial.println(" FM");
+    
+    FMtrans.readASQ(); // audio signal quality status
+    Serial.print("\tCurr ASQ: 0x"); 
+    Serial.print(FMtrans.currASQ, HEX);
+    Serial.print(" (");
+    printBits(FMtrans.currASQ);
+    Serial.println(") [Overmodulation; High Audio; Low Audio] 0 = OK");
+    
+    Serial.print("\tCurr InLevel (input audio volume range: from 0 to about -10 (dB)):"); 
+    Serial.println(FMtrans.currInLevel);
+
+
+
+    delay(3000);
 }
+
+
+void printBits(byte myByte){
+    for(byte mask = 0x80; mask; mask >>= 1){
+        if(mask & myByte)
+            Serial.print('1');
+        else
+            Serial.print('0');
+    }
+}
+
+
 
 
 // function that executes whenever data is requested by master
