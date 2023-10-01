@@ -232,6 +232,8 @@ bool AudioPlayerCreateDescription() {
             strcat(AudioCurrentlyPlayingDescription, AudioTitle);
             strcpy(AudioArtist, "");
             strcpy(AudioTitle, "");
+        } else if (strcmp(AudioCurrentlyPlayingDescription, "SDcard          ") != 0 && strcmp(AudioSelectedSource, "MP_SDcard") == 0 && SDcardAlbumPlaying == false) {
+            strcpy(AudioCurrentlyPlayingDescription, "SDcard          "); // spaces because of LCD display
         } else {
             return false;
         }
@@ -511,8 +513,10 @@ void setup() {
     SPI.setFrequency(1000000);
     if(!SD.begin(SD_CS)){
         Serial.println("Card Mount Failed");
-        lcd.setCursor(0, 1);
-        lcd.print("Card Mount Fail!");
+        if(I2CaddressIsActive(0x27)) {
+            lcd.setCursor(0, 1);
+            lcd.print("Card Mount Fail!");
+        }
     } else {
         Serial.println("Card Mount OK");
     }
@@ -807,7 +811,19 @@ void setup() {
                         Wire.write(1);
                         Wire.endTransmission();
                     } else if (source == "MP_Radio") {
-                    
+                        Wire.beginTransmission(BP_ESP_SLAVE_ID);
+                        Wire.write(0);
+                        Wire.write(0);
+                        Wire.write("RV");
+                        Wire.write(10);
+                        Wire.endTransmission();
+                        delay(10);
+                        Wire.beginTransmission(BP_ESP_SLAVE_ID);
+                        Wire.write(0);
+                        Wire.write(0);
+                        Wire.write("RT");
+                        Wire.write((byte)(997-900));
+                        Wire.endTransmission();
                     }
                 }
 
@@ -825,7 +841,12 @@ void setup() {
                         Wire.write(0);
                         Wire.endTransmission();
                     } else if (source == "MP_Radio") {
-                    
+                        Wire.beginTransmission(BP_ESP_SLAVE_ID);
+                        Wire.write(0);
+                        Wire.write(0);
+                        Wire.write("RV");
+                        Wire.write(0);
+                        Wire.endTransmission();
                     }
                 }
             
@@ -1136,14 +1157,25 @@ void loop() {
         Wire.endTransmission();    // stop transmitting
 
         // Receive
-        Wire.requestFrom(BP_ESP_SLAVE_ID, 8);    // request 8 bytes from peripheral device #8
+        Wire.requestFrom(BP_ESP_SLAVE_ID, 14);    // request 8 bytes from peripheral device #8
         Serial.print((char)Wire.read());
         Serial.print((char)Wire.read());
         Serial.print((char)Wire.read());
         Serial.print((int)Wire.read()); // "OFF", "ON"
+        Serial.print(",");
         Serial.print((int)Wire.read()); // "Disconnected", "Connected"
+        Serial.print(",");
         Serial.print((int)Wire.read()); // "Stopped", "Started"
+        Serial.print(",");
         Serial.print((int)Wire.read()); // volume (range 0 - 255) (0 - 127)
+        Serial.print((char)Wire.read());
+        Serial.print((char)Wire.read());
+        Serial.print((char)Wire.read());
+        Serial.print((int)Wire.read());
+        Serial.print(",");
+        Serial.print((int)Wire.read());
+        Serial.print(",");
+        Serial.print((int)Wire.read());
         Serial.print((char)Wire.read());
         Serial.println();
 

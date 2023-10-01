@@ -1,6 +1,8 @@
 #include <Wire.h>
 #define BP_ESP_SLAVE_ID 8
 
+#include <Si4703_Breakout.h>
+
 
 
 // ==> Example A2DP Receiver which uses connection_state an audio_state callback
@@ -8,6 +10,7 @@
 //https://randomnerdtutorials.com/getting-started-with-esp32/
 
 #include <BluetoothA2DPSink.h>
+
 
 
 
@@ -35,14 +38,37 @@ void audio_volume_changed(int volume) {
 char BTname[256] = "MyMusic";
 
 
+
+
+
+#define resetPin 18
+#define SDIO 21
+#define SCLK 22
+
+Si4703_Breakout radio(resetPin, SDIO, SCLK);
+int channel = 0;
+int volume = 0;
+char rdsBuffer[256] = {0};
+
+void RadioDisplayInfo()
+{
+   Serial.print("Channel:"); Serial.print(channel); 
+   Serial.print(" Volume:"); Serial.println(volume); 
+}
+
+
+
+
+
 void setup() {
     Serial.begin(9600);
     while(!Serial);
 
     // I2C slave setup
-    Wire.begin(BP_ESP_SLAVE_ID);                // join i2c bus with address #8
-    Wire.onRequest(requestEvent); // register event
-    Wire.onReceive(receiveEvent); // register event
+    Wire1.setPins(16, 17);
+    Wire1.begin(BP_ESP_SLAVE_ID);                // join i2c bus with address #8
+    Wire1.onRequest(requestEvent); // register event
+    Wire1.onReceive(receiveEvent); // register event
 
 
     // Bluetooth setup
@@ -58,6 +84,15 @@ void setup() {
     a2dp_sink.set_pin_config(my_pin_config);
 
 
+
+    // Radio setup
+    Serial.println("Radio ON!");
+    radio.powerOn();
+    Serial.println("Volume 0!");
+    radio.setVolume(0);
+
+  
+
     Serial.println("ESP slave ON!");
 }
 
@@ -71,26 +106,36 @@ void loop() {
 // function that executes whenever data is requested by master
 // this function is registered as an event, see setup()
 void requestEvent() {
-    Wire.write("bt:"); // Bluetooth
-    Wire.write((byte)BTon); // "OFF", "ON"
-    Wire.write((byte)a2dp_sink.is_connected()); // "Disconnected", "Connected"
-    Wire.write((byte)(a2dp_sink.get_audio_state() == 2)); // "Stopped", "Started"
-    Wire.write((byte)a2dp_sink.get_volume()); // uint8_t (range 0 - 255) (0 - 127)
-    Wire.write(";");
+    Wire1.write("bt:"); // Bluetooth
+    Wire1.write((byte)BTon); // "OFF", "ON"
+    Wire1.write((byte)a2dp_sink.is_connected()); // "Disconnected", "Connected"
+    Wire1.write((byte)(a2dp_sink.get_audio_state() == 2)); // "Stopped", "Started"
+    Wire1.write((byte)a2dp_sink.get_volume()); // uint8_t (range 0 - 255) (0 - 127)
+    Wire1.write(";r:");//10
+    Wire1.write((byte)volume);
+    Wire1.write((byte)(channel-900));
+    Wire1.write((byte)(rdsBuffer[0] != 0));
+    Wire1.write(";");//14
 }
 
 
-
+void RDSlisten(void * param)
+{
+    Serial.println("RDS listening");
+    radio.readRDS(rdsBuffer, 15000);
+    Serial.print("RDS heard:");
+    Serial.println(rdsBuffer); 
+}
 
 void receiveEvent(int bytesLength) { // bytes: 00[device][cmd][data...
-    char firstB = Wire.read();
-    char secondB = Wire.read();
+    char firstB = Wire1.read();
+    char secondB = Wire1.read();
     if (firstB == 0 && secondB == 0) {
-        char device = Wire.read();
-        char cmd = Wire.read();
+        char device = Wire1.read();
+        char cmd = Wire1.read();
         if (device == 'B') { // Bluetooth
             if(cmd == 'O') { // On/Off
-                char state = Wire.read();
+                char state = Wire1.read();
                 if(state == 0) {
                     Serial.println("Bluetooth OFF!");
                     if(BTon) { 
@@ -114,27 +159,55 @@ void receiveEvent(int bytesLength) { // bytes: 00[device][cmd][data...
             } else if (cmd == 'N') { // Name
                 Serial.print("Bluetooth name: ");   
                 int i = 0;
-                while(0 < Wire.available() && i < 255) // loop through all but the last
+                while(0 < Wire1.available() && i < 255) // loop through all but the last
                 {
-                    char c = Wire.read();
+                    char c = Wire1.read();
                     Serial.print(c);
                     BTname[i++] = c;
                 }
                 BTname[i] = '\0';
                 Serial.println();
             }
+        } else if (device == 'R') { // Radio
+            if(cmd == 'T') { // Tune
+                channel = Wire1.read()+900;
+                radio.setChannel(channel);
+            
+            } else if(cmd == 'U') { // Seek Up
+                channel = radio.seekUp();
+            
+            } else if(cmd == 'D') { // Seek Down
+                channel = radio.seekDown();
+            
+            } else if(cmd == 'V') { // Volume
+                int vol = Wire1.read();
+                if (vol >= 0 && vol <= 15) { // Volume: 0 - 15
+                    volume = vol;
+                    radio.setVolume(volume);
+                }
+            } else if(cmd == 'R') { // RDS info
+                xTaskCreatePinnedToCore(
+                    RDSlisten,             /* Function to implement the task */
+                    "RDSlisten",           /* Name of the task */
+                    3000,                  /* Stack size in bytes */
+                    NULL,                  /* Task input parameter */
+                    2 | portPRIVILEGE_BIT, /* Priority of the task */
+                    NULL,                  /* Task handle. */
+                    0                      /* Core where the task should run */
+                );
+            }
+            RadioDisplayInfo();
         }
-        
     }
 
     
-    while(1 < Wire.available()) // loop through all but the last
+    while(1 < Wire1.available()) // loop through all but the last
     {
-        char c = Wire.read(); // receive byte as a character
+        char c = Wire1.read(); // receive byte as a character
         Serial.print(c);         // print the character
     }
-    if(Wire.available()){
-        int x = Wire.read();    // receive byte as an integer
+    if(Wire1.available()){
+        int x = Wire1.read();    // receive byte as an integer
         Serial.println(x);         // print the integer
     }
 }
