@@ -14,15 +14,16 @@
 
 
 BluetoothA2DPSink a2dp_sink;
+bool BTon = false;
 
 // for esp_a2d_connection_state_t see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/bluetooth/esp_a2dp.html#_CPPv426esp_a2d_connection_state_t
-void connection_state_changed(esp_a2d_connection_state_t state, void *ptr){
-  Serial.println(a2dp_sink.to_str(state));
+void connection_state_changed(esp_a2d_connection_state_t state, void *ptr){ // {"Disconnected", "Connecting", "Connected", "Disconnecting"}
+    Serial.println(a2dp_sink.to_str(state));    
 }
 
 // for esp_a2d_audio_state_t see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/bluetooth/esp_a2dp.html#_CPPv421esp_a2d_audio_state_t
-void audio_state_changed(esp_a2d_audio_state_t state, void *ptr){
-  Serial.println(a2dp_sink.to_str(state));
+void audio_state_changed(esp_a2d_audio_state_t state, void *ptr){ // {"Suspended", "Stopped", "Started"}
+    Serial.println(a2dp_sink.to_str(state));
 }
 
 void audio_volume_changed(int volume) {
@@ -70,8 +71,12 @@ void loop() {
 // function that executes whenever data is requested by master
 // this function is registered as an event, see setup()
 void requestEvent() {
-    Wire.write("hello world"); // respond with message of 6 bytes
-    // as expected by master
+    Wire.write("bt:"); // Bluetooth
+    Wire.write((byte)BTon); // "OFF", "ON"
+    Wire.write((byte)a2dp_sink.is_connected()); // "Disconnected", "Connected"
+    Wire.write((byte)(a2dp_sink.get_audio_state() == 2)); // "Stopped", "Started"
+    Wire.write((byte)a2dp_sink.get_volume()); // uint8_t (range 0 - 255) (0 - 127)
+    Wire.write(";");
 }
 
 
@@ -88,9 +93,15 @@ void receiveEvent(int bytesLength) { // bytes: 00[device][cmd][data...
                 char state = Wire.read();
                 if(state == 0) {
                     Serial.println("Bluetooth OFF!");
-                    a2dp_sink.end(false); // (bool release_memory=false) ends the I2S bluetooth sink with the indicated name - if you release the memory a future start is not possible 
+                    if(BTon) { 
+                        a2dp_sink.end(false); // (bool release_memory=false) ends the I2S bluetooth sink with the indicated name - if you release the memory a future start is not possible
+                        BTon = false;
+                    }
                 } else if (state == 1) {
-                    a2dp_sink.end(false); // (bool release_memory=false) ends the I2S bluetooth sink with the indicated name - if you release the memory a future start is not possible 
+                    if(BTon) {
+                        a2dp_sink.end(false); // (bool release_memory=false) ends the I2S bluetooth sink with the indicated name - if you release the memory a future start is not possible 
+                    }
+                    BTon = true;
                     Serial.println("Bluetooth ON!");
                     Serial.println(BTname);
                     a2dp_sink.start(BTname);

@@ -145,7 +145,7 @@ window.addEventListener("load", (event) => {
 			const response = await fetch("./API/?CMD=DESC");
 			const text = await response.text();
 			console.log(text);
-			if (text != "") {
+			if (text != "" && !text.startsWith('/')) {
 				document.getElementById("Mplayer").value = text;
 			} else if(desc_tries_count < 3) {
 				desc_tries_count++;

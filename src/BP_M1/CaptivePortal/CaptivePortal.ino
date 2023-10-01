@@ -81,30 +81,33 @@ bool AudioAMtransActive = false;
 char AudioAMtransFrequency[8] = {0};
 
 
-char TrackPath[512] = {0};
-char EOFTrackPath[256] = {0};
+bool SDcardAlbumPlaying = false;
+char SDcardNextTrackPath[512] = {0};
 void AudioSDcardPlayTrack(void *parameter)
 {
+    SDcardAlbumPlaying = true;
+    
     if(parameter != NULL){
-        strcpy(TrackPath, (const char *)parameter);
+        strcpy(SDcardNextTrackPath, (const char *)parameter);
     } else {
         //delay(3000);
     }
     Serial.print("Music player: Playing new track: ");
-    Serial.println(TrackPath);
-    
-    audioConnecttoSD(TrackPath);
+    Serial.println(SDcardNextTrackPath);
+
+    audioStopSong();
+    audioConnecttoSD(SDcardNextTrackPath);
     
     strcpy(AudioSelectedSource, "MP_SDcard"); // set SDcard audio source
-    strcpy(AudioLastPlayedTrack, TrackPath);
-    strcpy(AudioCurrentlyPlayingDescription, TrackPath);
+    strcpy(AudioLastPlayedTrack, SDcardNextTrackPath);
+    strcpy(AudioCurrentlyPlayingDescription, SDcardNextTrackPath);
     
     preferences.begin("my-app", false);
     preferences.putBytes("AU_SOURCE", AudioSelectedSource, 32);
     preferences.putBytes("AU_LAST_TRACK", AudioLastPlayedTrack, 255);
     preferences.end();
     
-    TrackPath[0] = '\0';
+    SDcardNextTrackPath[0] = '\0';
 }
 
 
@@ -150,6 +153,8 @@ void listDirFind(fs::FS &fs, const char * dirname, uint8_t levels, const char * 
         Serial.println("Not a directory");
         return;
     }
+
+    bool lastTrackFound = false;
     
     File file = root.openNextFile();
     while(file){
@@ -166,52 +171,59 @@ void listDirFind(fs::FS &fs, const char * dirname, uint8_t levels, const char * 
             Serial.print("  SIZE: ");
             Serial.println(file.size());
 
-            if(strcmp(filename, file.name()) == 0) {
-                file = root.openNextFile();
-                if(file){
-                    strcpy(TrackPath, dirname);
-                    strcat(TrackPath, "/");
-                    strcat(TrackPath, file.name());
-                    
-                    root.close();
-                    
-                } else {
-                    Serial.println("Music player: end of album/folder!");
-                }
+            if(lastTrackFound == true) {
+                strcpy(SDcardNextTrackPath, dirname);
+                strcat(SDcardNextTrackPath, "/");
+                strcat(SDcardNextTrackPath, file.name());
+                root.close();
+                return;
+            }
+            if(strcmp(filename, file.name()) == 0 && lastTrackFound == false) {
+                lastTrackFound = true;
             }
         }
         file = root.openNextFile();
     }
+
+    SDcardAlbumPlaying = false;
+    Serial.println("Music player: end of album/folder!");
+
+    root.close();
 }
 void audio_eof_mp3(const char *info){  //end of file
-
     Serial.print("eof_mp3     ");Serial.println(info);
-    strncpy(EOFTrackPath, info, 255);
+    Serial.print("eof_mp3() is running on core ");
+    Serial.println(xPortGetCoreID());
+
+    Serial.print("SDcardAlbumPlaying: ");
+    Serial.println(SDcardAlbumPlaying);
+
+    if(SDcardAlbumPlaying == true) {//audioisrunning == false && 
+        char AudioLastPlayedSDcardNextTrackPath[256] = {0};
+        strcpy(AudioLastPlayedSDcardNextTrackPath, AudioLastPlayedTrack);
+        int i = strlen(AudioLastPlayedSDcardNextTrackPath);
+        for(; i > 0; i--) {
+            if(AudioLastPlayedSDcardNextTrackPath[i] == '/') {
+                AudioLastPlayedSDcardNextTrackPath[i] = '\0';
+                i = -1;
+            }
+        }
+        if(i == 0) {
+            AudioLastPlayedSDcardNextTrackPath[1] = '\0';
+        }
+        
+        listDirFind(SD, AudioLastPlayedSDcardNextTrackPath, 0, info);
+    }
     
 }
 void audioStartStop(bool audioisrunning){
     Serial.print("audioisrunning    ");Serial.println(audioisrunning);
     Serial.print("audioStartStop() is running on core ");
     Serial.println(xPortGetCoreID());
-
-    if(audioisrunning == false) {
-        char AudioLastPlayedTrackPath[256] = {0};
-        strcpy(AudioLastPlayedTrackPath, AudioLastPlayedTrack);
-        int i = strlen(AudioLastPlayedTrackPath);
-        for(; i > 0; i--) {
-            if(AudioLastPlayedTrackPath[i] == '/') {
-                AudioLastPlayedTrackPath[i] = '\0';
-                i = -1;
-            }
-        }
-        if(i == 0) {
-            AudioLastPlayedTrackPath[1] = '\0';
-        }
-        
-        listDirFind(SD, AudioLastPlayedTrackPath, 0, EOFTrackPath);
-    }
 }
 /* AUDIO TASK - end */
+
+
 bool AudioPlayerCreateDescription() {
     if (strcmp(AudioSelectedSource, "MP_SDcard") == 0 || strcmp(AudioSelectedSource, "MP_Internet") == 0) {
         if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
@@ -229,6 +241,18 @@ bool AudioPlayerCreateDescription() {
         } else {
             return false;
         }
+    } else if(strcmp(AudioSelectedSource, "MP_Radio") == 0) {
+        if (strcmp(AudioCurrentlyPlayingDescription, "Radio           ") != 0) {
+            strcpy(AudioCurrentlyPlayingDescription, "Radio           "); // spaces because of LCD display
+        } else {
+            return false;
+        }
+    }
+    // replace double quotes for javascript
+    for(int i = 0; i < strlen(AudioCurrentlyPlayingDescription); i++){
+        if (AudioCurrentlyPlayingDescription[i] == '"'){
+            AudioCurrentlyPlayingDescription[i] = '\'';
+        }
     }
     // save to preferences
     preferences.begin("my-app", false);
@@ -239,19 +263,19 @@ bool AudioPlayerCreateDescription() {
 
 void webServer_sendContentJavascriptSetElementChecked(const char elementId[])
 {
-      webServer.sendContent(F("document.getElementById('"));
-      webServer.sendContent(elementId);
-      webServer.sendContent(F("').checked = true;\n"));
+    webServer.sendContent(F("document.getElementById('"));
+    webServer.sendContent(elementId);
+    webServer.sendContent(F("').checked = true;\n"));
 }
 
 
 void webServer_sendContentJavascriptSetElementValue(const char elementId[], char value[])
 {
-  webServer.sendContent(F("document.getElementById('"));
-  webServer.sendContent(elementId);
-  webServer.sendContent(F("').value = \""));
-  webServer.sendContent(value);
-  webServer.sendContent(F("\";\n"));
+    webServer.sendContent(F("document.getElementById('"));
+    webServer.sendContent(elementId);
+    webServer.sendContent(F("').value = \""));
+    webServer.sendContent(value);
+    webServer.sendContent(F("\";\n"));
 }
 
 String webServer_getArgValue(String argname) 
@@ -299,6 +323,7 @@ bool I2CaddressIsActive(byte address) {
 
 void AudioStopAllSources() {
     // Stop SDcard + Internet
+    SDcardAlbumPlaying = false;
     audioStopSong();
     // Stop Bluetooth
     Wire.beginTransmission(BP_ESP_SLAVE_ID);
@@ -404,6 +429,8 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
         webServer.sendContent(F("</tr>\n"));
         file = root.openNextFile();
     }
+    
+    root.close();
 }
 
 
@@ -760,10 +787,10 @@ void setup() {
                 if(cmd2 == "SAVEPLAY") { // PLAY
                     AudioCurrentlyPlayingDescription[0] = '\0';
                     if (source == "MP_SDcard") {
-                        strcpy(AudioCurrentlyPlayingDescription, AudioLastPlayedTrack);
-                        audioConnecttoSD(AudioLastPlayedTrack);
+                        AudioSDcardPlayTrack(AudioLastPlayedTrack);
                     } else if (source == "MP_Internet") {
-                        strcpy(AudioCurrentlyPlayingDescription, AudioLastPlayedTrack);
+                        audioStopSong();
+                        strcpy(AudioCurrentlyPlayingDescription, AudioLastInternetURL);
                         audioConnecttohost(AudioLastInternetURL);
                     } else if (source == "MP_Bluetooth") {
                         Wire.beginTransmission(BP_ESP_SLAVE_ID);
@@ -786,6 +813,7 @@ void setup() {
 
                 if(cmd2 == "STOP") { // STOP
                     if (source == "MP_SDcard") {
+                        SDcardAlbumPlaying = false;
                         audioStopSong();
                     } else if (source == "MP_Internet") {
                         audioStopSong();
@@ -1091,8 +1119,7 @@ void loop() {
         Serial.println("LCD display");
     }
 
-    if (TrackPath[0] != '\0') {
-        audioStopSong();
+    if (SDcardNextTrackPath[0] != '\0') { // play next track
         AudioSDcardPlayTrack(NULL);
     }
 
@@ -1109,15 +1136,17 @@ void loop() {
         Wire.endTransmission();    // stop transmitting
 
         // Receive
-        Wire.requestFrom(BP_ESP_SLAVE_ID, 6);    // request 6 bytes from peripheral device #8
-        while (Wire.available()) { // peripheral may send less than requested
-    
-            char c = Wire.read(); // receive a byte as character
-            Serial.print(c);         // print the character
-        }
+        Wire.requestFrom(BP_ESP_SLAVE_ID, 8);    // request 8 bytes from peripheral device #8
+        Serial.print((char)Wire.read());
+        Serial.print((char)Wire.read());
+        Serial.print((char)Wire.read());
+        Serial.print((int)Wire.read()); // "OFF", "ON"
+        Serial.print((int)Wire.read()); // "Disconnected", "Connected"
+        Serial.print((int)Wire.read()); // "Stopped", "Started"
+        Serial.print((int)Wire.read()); // volume (range 0 - 255) (0 - 127)
+        Serial.print((char)Wire.read());
         Serial.println();
 
-        
         Timer1000 = millis();
     }
 }
