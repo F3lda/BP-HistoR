@@ -15,6 +15,8 @@
 
 #define BP_ESP_SLAVE_ID 8
 
+#define SDCARD_MAX_PATH_LENGTH 256
+
 
 
 // SD card - Digital I/O used
@@ -28,6 +30,8 @@
 const char AppName[] = "HistoR";
 
 Preferences preferences;
+
+
 
 
 // knihovny pro LCD přes I2C
@@ -392,9 +396,7 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
         webServer.sendContent(F("<tr>\n"));
         if(file.isDirectory()){
             Serial.print("  DIR : ");
-            webServer.sendContent(F("<td>"));
-            webServer.sendContent(FSH(folderImage));
-            webServer.sendContent(F("DIR</td><td><a href='./SDSELECT?PATH="));
+            webServer.sendContent(F("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH="));
             webServer.sendContent(dirname);
             if(dirname[0] == '/' && dirname[1] != '\0'){
                 webServer.sendContent(F("/"));
@@ -409,9 +411,7 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
             }
         } else {
             Serial.print("  FILE: ");
-            webServer.sendContent(F("<td>"));
-            webServer.sendContent(FSH(fileImage));
-            webServer.sendContent(F("FILE</td><td><a href='./SDSELECT?PATH="));
+            webServer.sendContent(F("<td><img title=\"File\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?DOCUMENT=\" />FILE</td><td><a href='./SDSELECT?PATH="));
             webServer.sendContent(dirname);
             webServer.sendContent(F("&PLAY="));
             webServer.sendContent(dirname);
@@ -429,6 +429,42 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
             webServer.sendContent(F("</td>\n"));
         }
         webServer.sendContent(F("</tr>\n"));
+        file = root.openNextFile();
+    }
+    
+    root.close();
+}
+
+
+
+void listDirSerial(fs::FS &fs, const char * dirname, uint8_t levels){
+  
+    Serial.print("listDir() is running on core ");
+    Serial.println(xPortGetCoreID());
+    
+    Serial.printf("Listing directory: %s\n", dirname);
+
+    File root = fs.open(dirname);
+    if(!root){
+        Serial.println("Failed to open directory");
+        return;
+    }
+    if(!root.isDirectory()){
+        Serial.println("Not a directory");
+        return;
+    }
+    
+    File file = root.openNextFile();
+    while(file){
+        if(file.isDirectory()){
+            Serial.print("  DIR : ");
+            Serial.println(file.name());
+        } else {
+            Serial.print("  FILE: ");
+            Serial.print(file.name());
+            Serial.print("  SIZE: ");
+            Serial.println(file.size());
+        }
         file = root.openNextFile();
     }
     
@@ -477,8 +513,8 @@ void setup() {
     preferences.getBytes("AU_FM_FREQ", AudioFMtransFrequency, 8);
     AudioAMtransActive = preferences.getBool("AU_AM_ACTIVE", AudioAMtransActive);
     preferences.getBytes("AU_AM_FREQ", AudioAMtransFrequency, 8);
-    
     preferences.end();
+
 
 
 
@@ -503,7 +539,7 @@ void setup() {
     Serial.println("--------------------");
 
 
-    
+
 
 
     /* SD CARD */
@@ -542,6 +578,9 @@ void setup() {
     Serial.println("--------------------");
 
 
+
+
+
     /* AUDIO */
     audioInit();
     delay(1500);
@@ -550,8 +589,6 @@ void setup() {
     Serial.println(audioGetVolume());
     Serial.println("--------------------");
 
-
-        
 
 
 
@@ -591,6 +628,9 @@ void setup() {
     /* WEB SERVER */
     // replay to all requests with same page
     webServer.onNotFound([]() {
+        Serial.print("WEBSERVER is running on core ");
+        Serial.println(xPortGetCoreID());
+      
         String requestUri = webServer.uri(); //.toCharArray(requestUri, sizeof(requestUri) + 1);
         if (webServer.args() > 0) {
           requestUri += "?";
@@ -613,11 +653,11 @@ void setup() {
             webServer.client().stop();
             return;
         }
-  
-  
+
+
         webServer.setContentLength(CONTENT_LENGTH_UNKNOWN); // https://www.esp8266.com/viewtopic.php?p=73204
         // here begin chunked transfer
-        webServer.send(200, "text/html", "");
+        webServer.send(200, "text/html", "<!--- DOCUMENT START --->");
         webServer.sendContent(FSH(HistoRHomePage));
         webServer.sendContent(F("<script>\n"));
         // WIFI
@@ -647,6 +687,8 @@ void setup() {
         webServer.sendContent(F("</script>\n"));
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
+
+        Serial.println("\nHome Page Loaded!\n");
     });
     
     webServer.on("/API/", HTTP_GET, []() {
@@ -921,8 +963,26 @@ void setup() {
 
 
 
+    webServer.on("/RESTART", HTTP_GET, []() {
+        
+        Serial.println("RESTART OK!");
+  
+        webServer.send(200, "text/html", "RESTART OK!\n<br><br><a href='./'>Home Page</a>");
+        webServer.client().stop();
+
+        delay(1000);
+        ESP.restart();
+    });
+
+
+
+
     
     webServer.on("/SDSELECT", HTTP_GET, []() {
+
+      Serial.print("SDSELECT is running on core ");
+    Serial.println(xPortGetCoreID());
+        
         
         if (webServer.hasArg("PLAY")) {
             char path[256] = {0};
@@ -939,6 +999,8 @@ void setup() {
             webServer.client().stop();
             return;
         }
+
+        //listDirSerial(SD, "/DqnceRemix", 0);
 
         char path[256] = {0};
         if (webServer.hasArg("PATH")) {
@@ -1071,6 +1133,19 @@ void setup() {
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
     });
+
+
+        webServer.on("/IMG", HTTP_GET, []() {
+
+        if (webServer.hasArg("DOCUMENT")) {
+            webServer.send_P(200, "image/png", (const char*)document_png, document_png_len);
+            webServer.client().stop();
+        } else if (webServer.hasArg("FOLDER")) {
+            webServer.send_P(200, "image/png", (const char*)folder_png, folder_png_len);
+            webServer.client().stop();
+        }
+    });
+    
   
     webServer.begin();
 
@@ -1181,4 +1256,6 @@ void loop() {
 
         Timer1000 = millis();
     }
+
+    yield(); //https://github.com/espressif/arduino-esp32/issues/4348#issuecomment-1463206670
 }

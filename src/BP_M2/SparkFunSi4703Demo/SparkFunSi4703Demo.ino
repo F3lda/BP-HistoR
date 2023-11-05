@@ -136,7 +136,7 @@ void loop() {
     Serial.println("Configured for European Radio");
 #endif
 
-    Serial.println("1) Tune to 97.3");
+    Serial.println("1) Tune to 99.7");
     Serial.println("2) Mute On/Off");
     Serial.println("3) Display status");
     Serial.println("4) Seek up");
@@ -154,8 +154,8 @@ void loop() {
     option = Serial.read();
 
     if(option == '1')  {
-      Serial.println("Tune to 97.3");
-      currentChannel = 973;
+      Serial.println("Tune to 99.7");
+      currentChannel = 997;
       //currentChannel = 1023;
       gotoChannel(currentChannel);
     }
