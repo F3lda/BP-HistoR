@@ -7,6 +7,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <FS.h>
+#include <SPIFFS.h>
 
 #include "HistoRWebPages.h"
 
@@ -347,6 +348,10 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
   
     Serial.print("listDir() is running on core ");
     Serial.println(xPortGetCoreID());
+
+    
+    webServer.sendContent(F("<!DOCTYPE html><html><head><title>HistoR - Music player - select track</title></head><body>"));
+    
     
     Serial.printf("Listing directory: %s\n", dirname);
     webServer.sendContent(F("Listing directory: "));
@@ -383,9 +388,7 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
         }
         Serial.print("UP dir: ");
         Serial.println(stemp);
-        webServer.sendContent(F("<td>"));
-        webServer.sendContent(FSH(folderImage));
-        webServer.sendContent(F("DIR</td><td><a href='./SDSELECT?PATH="));
+        webServer.sendContent(F("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH="));
         webServer.sendContent(stemp);
         webServer.sendContent(F("'>..</a></td><td></td>\n"));
     }
@@ -433,42 +436,157 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
     }
     
     root.close();
+
+    
+    webServer.sendContent(F("</table><br><br><a href='./'>close</a>\n"));
+    
+    webServer.sendContent(F("</body></html>\n"));
 }
 
 
 
-void listDirSerial(fs::FS &fs, const char * dirname, uint8_t levels){
+void listDirSerial(fs::FS &fs, const char * dirname){
   
     Serial.print("listDir() is running on core ");
     Serial.println(xPortGetCoreID());
     
+    
+    char path[strlen(dirname)+15];
+    strcpy(path, dirname);
+    if(dirname[0] == '/' && dirname[1] != '\0'){
+        strcat(path, "/");
+    }
+    strcat(path, "dirList.txt\0");
+    Serial.printf("Saving path: %s\n", path);
+    File fileSPIFFS = SPIFFS.open(path, FILE_WRITE);
+    if (!fileSPIFFS) {
+       Serial.println("– failed to open file for writing");
+       return;
+    }
+
+
+
+    fileSPIFFS.print(F("<!DOCTYPE html><html><head><title>HistoR - Music player - select track</title></head><body>"));
+    
+    
     Serial.printf("Listing directory: %s\n", dirname);
+    fileSPIFFS.print(F("Listing directory: "));
+    fileSPIFFS.print(dirname);
+    fileSPIFFS.print(F("\n"));
 
     File root = fs.open(dirname);
     if(!root){
         Serial.println("Failed to open directory");
+        root.close();
+        fileSPIFFS.print(F("Failed to open directory\n"));
+        fileSPIFFS.close();
         return;
     }
     if(!root.isDirectory()){
         Serial.println("Not a directory");
+        root.close();
+        fileSPIFFS.print(F("Not a directory\n"));
+        fileSPIFFS.close();
         return;
     }
+
+    fileSPIFFS.print(F("<table><tr><th>Type</th><th>Name</th><th>Size</th></tr>\n"));
     
+    if(dirname[0] == '/' && dirname[1] != '\0'){
+        int slen = strlen(dirname);
+        char stemp[slen+1] = {0};
+        strcpy(stemp, dirname);
+        int i = slen;
+        for(; i > 0; i--) {
+            if(stemp[i] == '/') {
+                stemp[i] = '\0';
+                i = -1;
+            }
+        }
+        if(i == 0) {
+            stemp[1] = '\0';
+        }
+        Serial.print("UP dir: ");
+        Serial.println(stemp);
+        fileSPIFFS.print(F("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH="));
+        fileSPIFFS.print(stemp);
+        fileSPIFFS.print(F("'>..</a></td><td></td>\n"));
+    }
+    
+
     File file = root.openNextFile();
     while(file){
+        fileSPIFFS.print(F("<tr>\n"));
         if(file.isDirectory()){
-            Serial.print("  DIR : ");
-            Serial.println(file.name());
+            //Serial.print("  DIR : ");
+            fileSPIFFS.print(F("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH="));
+            fileSPIFFS.print(dirname);
+            if(dirname[0] == '/' && dirname[1] != '\0'){
+                fileSPIFFS.print(F("/"));
+            }
+            fileSPIFFS.print(file.name());
+            fileSPIFFS.print(F("'>"));
+            //Serial.println(file.name());
+            fileSPIFFS.print(file.name());
+            fileSPIFFS.print(F("</a></td><td></td>\n"));
         } else {
-            Serial.print("  FILE: ");
-            Serial.print(file.name());
-            Serial.print("  SIZE: ");
-            Serial.println(file.size());
+            //Serial.print("  FILE: ");
+            fileSPIFFS.print(F("<td><img title=\"File\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?DOCUMENT=\" />FILE</td><td><a href='./SDSELECT?PATH="));
+            fileSPIFFS.print(dirname);
+            fileSPIFFS.print(F("&PLAY="));
+            fileSPIFFS.print(dirname);
+            if(dirname[0] == '/' && dirname[1] != '\0'){
+                fileSPIFFS.print(F("/"));
+            }
+            fileSPIFFS.print(file.name());
+            fileSPIFFS.print(F("'>"));
+            //Serial.print(file.name());
+            fileSPIFFS.print(file.name());
+            //Serial.print("  SIZE: ");
+            fileSPIFFS.print(F("</a></td><td>"));
+            //Serial.println(file.size());
+            fileSPIFFS.print(String(file.size()));
+            fileSPIFFS.print(F("</td>\n"));
         }
+        fileSPIFFS.print(F("</tr>\n"));
         file = root.openNextFile();
     }
     
     root.close();
+
+    
+    fileSPIFFS.print(F("</table><br><br><a href='./'>close</a>\n"));
+    
+    fileSPIFFS.print(F("</body></html>\n"));
+
+
+
+    fileSPIFFS.close();
+
+
+
+
+
+    Serial.printf("Reading file: %s\r\n", path);
+
+    fileSPIFFS = SPIFFS.open(path);
+    if (!fileSPIFFS || fileSPIFFS.isDirectory()){
+       Serial.println("– failed to open file for reading");
+       if(fileSPIFFS.isDirectory()){
+          fileSPIFFS.close();
+       }
+       return;
+    }
+
+    Serial.println("– read from file:");
+    char buff[512] = {0};
+    while(fileSPIFFS.available()) {
+        size_t bytes = fileSPIFFS.readBytes(buff, 511);
+        buff[bytes] = '\0';
+        webServer.sendContent(buff);
+    }
+
+    fileSPIFFS.close();
 }
 
 
@@ -575,6 +693,20 @@ void setup() {
     Serial.printf("SD Card Size: %lluMB\n", SD.cardSize() / (1024 * 1024));
     Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
     Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+    Serial.println("--------------------");
+
+
+
+
+
+    /* SPIFFS */
+    if(!SPIFFS.begin(true)) { // if mount fail -> format SPIFFS
+       Serial.println("SPIFFS Mount Failed");
+    } else {
+        Serial.println("SPIFFS Mount OK");
+        //SPIFFS.format(); // -- if format is only quick -> format every setup and when loading page -> check if file exists and dont write it again
+        // ELSE -> dont format SPIFFS every setup -> just overwrite file every time page is loaded
+    }
     Serial.println("--------------------");
 
 
@@ -1000,7 +1132,7 @@ void setup() {
             return;
         }
 
-        //listDirSerial(SD, "/DqnceRemix", 0);
+        
 
         char path[256] = {0};
         if (webServer.hasArg("PATH")) {
@@ -1014,13 +1146,12 @@ void setup() {
         // here begin chunked transfer
         webServer.send(200, "text/html", "");
 
-        webServer.sendContent(F("<!DOCTYPE html><html><head><title>HistoR - Music player - select track</title></head><body>"));
         
-        listDir(SD, path, 0);
 
-        webServer.sendContent(F("</table><br><br><a href='./'>close</a>\n"));
+        //listDir(SD, path, 0);
+        listDirSerial(SD, path);
         
-        webServer.sendContent(F("</body></html>\n"));
+
         
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
