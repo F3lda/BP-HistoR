@@ -20,6 +20,7 @@ void setup()
   Serial.println("+ -     Volume (max 15)");
   Serial.println("u d     Seek up / down");
   Serial.println("r       Listen for RDS Data (15 sec timeout)");
+  Serial.println("g       get current Channel");
   Serial.println("Send me a command letter.");
   
 
@@ -64,16 +65,36 @@ void loop()
     }
     else if (ch == 'b')
     {
-      channel = 1055; // BBC R4
+      channel = 1045; // BBC R4
       radio.setChannel(channel);
       displayInfo();
     }
     else if (ch == 'r')
     {
-      Serial.println("RDS listening");
-      radio.readRDS(rdsBuffer, 15000);
-      Serial.print("RDS heard:");
-      Serial.println(rdsBuffer);      
+      if(radio.readRDS(rdsBuffer, 1) == 0) {
+          Serial.println("No RDS");
+      } else {
+          Serial.println("RDS listening");
+          radio.readRDS(rdsBuffer, 15000);
+          Serial.print("RDS heard:");
+          Serial.println(rdsBuffer);
+      }
+    }
+    else if (ch == 'g')
+    {
+      Serial.print("Current Volume: ");
+      Serial.println(radio.getVolume());
+      Serial.print("Current Channel: ");
+      Serial.println(radio.getChannel());    
+      Serial.print("Current RSSI: ");
+      Serial.println(radio.getRSSI());      
+      Serial.print("Current Firmware: ");
+      Serial.println(radio.getFirmware());
+      if(radio.getFirmware() == 0 && radio.getRSSI() == 0){
+          radio.powerOn();
+          radio.setVolume(volume);
+          radio.setChannel(channel);
+      }   
     }
   }
 }

@@ -989,14 +989,25 @@ void setup() {
                         Wire.write(0);
                         Wire.write(0);
                         Wire.write("RV");
-                        Wire.write(10);
+                        Wire.write(15);
                         Wire.endTransmission();
                         delay(10);
+
+                        char strTemp[10] = {0};
+                        int int1 = 997;
+                        int int2 = 0;
+                        sscanf(AudioLastRadioFrequency, "%d.%d",&int1,&int2);
+                        sprintf(strTemp, "%d%d", int1, int2);
+                        Serial.println(strTemp);
+                        sscanf(strTemp, "%d", &int1);
+                        Serial.print("Radio Frequency: ");
+                        Serial.println(int1);
+
                         Wire.beginTransmission(BP_ESP_SLAVE_ID);
                         Wire.write(0);
                         Wire.write(0);
                         Wire.write("RT");
-                        Wire.write((byte)(997-900));
+                        Wire.write((byte)(int1-900));
                         Wire.endTransmission();
                     }
                 }

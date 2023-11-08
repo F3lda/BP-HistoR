@@ -256,6 +256,11 @@ void receiveEvent(int bytesLength) { // bytes: 00[device][cmd][data...
                 Serial.println();
             }
         } else if (device == 'R') { // Radio
+            if(radio.getFirmware() == 0 && radio.getRSSI() == 0) { // FM radio reset check
+                radio.powerOn();
+                radio.setVolume(volume);
+                radio.setChannel(channel);
+            }
             if(cmd == 'T') { // Tune
                 channel = Wire1.read()+900;
                 radio.setChannel(channel);

@@ -136,7 +136,7 @@ void loop() {
     Serial.println("Configured for European Radio");
 #endif
 
-    Serial.println("1) Tune to 99.7");
+    Serial.println("1) Tune to 104.5");
     Serial.println("2) Mute On/Off");
     Serial.println("3) Display status");
     Serial.println("4) Seek up");
@@ -152,10 +152,11 @@ void loop() {
 
     while (!Serial.available());
     option = Serial.read();
+    Serial.readStringUntil('\n');
 
     if(option == '1')  {
-      Serial.println("Tune to 99.7");
-      currentChannel = 997;
+      Serial.println("Tune to 104.5");
+      currentChannel = 1045;
       //currentChannel = 1023;
       gotoChannel(currentChannel);
     }
@@ -322,6 +323,7 @@ void loop() {
           else if(option == 'x') break;
         }
       }
+      Serial.readStringUntil('\n');
     }
 
     else if(option == 'w') {
@@ -347,6 +349,16 @@ void loop() {
       Serial.println(option);
     }
   }
+}
+
+
+void printBits(byte myByte){
+  for(byte mask = 0x80; mask; mask >>= 1){
+    if(mask & myByte)
+      Serial.print('1');
+    else
+      Serial.print('0');
+   }
 }
 
 //Given a channel, tune to it
@@ -556,7 +568,13 @@ void si4703_printRegisters(void) {
 
   //Print the response array for debugging
   for(int x = 0 ; x < 16 ; x++) {
-    sprintf(printBuffer, "Reg 0x%02X = 0x%04X", x, si4703_registers[x]);
-    Serial.println(printBuffer);
+    uint16_t si4703_register = si4703_registers[x];
+    byte lower_word = (byte) si4703_register;
+    byte upper_word = (byte) (si4703_register >> 8);
+    printBits(upper_word);
+    printBits(lower_word);
+    Serial.println();
+    //sprintf(printBuffer, "Reg 0x%02X = 0x%04X", x, si4703_registers[x]);
+    //Serial.println(printBuffer);
   }
 }
