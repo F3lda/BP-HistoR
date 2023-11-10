@@ -18,6 +18,7 @@
 BluetoothA2DPSink a2dp_sink;
 bool BTon = false;
 char BTname[256] = "MyMusic";
+int BTvolume = 127; // 0 - 127
 
 // for esp_a2d_connection_state_t see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/bluetooth/esp_a2dp.html#_CPPv426esp_a2d_connection_state_t
 void connection_state_changed(esp_a2d_connection_state_t state, void *ptr){ // {"Disconnected", "Connecting", "Connected", "Disconnecting"}
@@ -32,6 +33,7 @@ void audio_state_changed(esp_a2d_audio_state_t state, void *ptr){ // {"Suspended
 void audio_volume_changed(int volume) {
   Serial.print("Volume: ");
   Serial.println(volume);
+  BTvolume = volume;
 }
 
 
@@ -225,26 +227,30 @@ void receiveEvent(int bytesLength) { // bytes: 00[device][cmd][data...
                 char state = Wire1.read();
                 if(state == 0) {
                     Serial.println("Bluetooth OFF!");
-                    if(BTon) { 
-                        a2dp_sink.end(false); // (bool release_memory=false) ends the I2S bluetooth sink with the indicated name - if you release the memory a future start is not possible
+                    if(BTon) {
                         BTon = false;
+                        a2dp_sink.disconnect();
+                        a2dp_sink.end(false); // (bool release_memory=false) ends the I2S bluetooth sink with the indicated name - if you release the memory a future start is not possible
                     }
                 } else if (state == 1) {
                     if(BTon) {
-                        a2dp_sink.end(false); // (bool release_memory=false) ends the I2S bluetooth sink with the indicated name - if you release the memory a future start is not possible 
+                        BTon = false;
+                        a2dp_sink.disconnect();
+                        a2dp_sink.end(false); // (bool release_memory=false) ends the I2S bluetooth sink with the indicated name - if you release the memory a future start is not possible
                     }
-                    BTon = true;
                     Serial.println("Bluetooth ON!");
                     Serial.println(BTname);
                     a2dp_sink.start(BTname);
                     int vol = a2dp_sink.get_volume();
                     Serial.print("Volume: ");
                     Serial.println(vol);
-                    a2dp_sink.set_volume(127);// uint8_t (range 0 - 255) (0 - 127)
-                    a2dp_sink.reconnect();
+                    a2dp_sink.set_volume(BTvolume);// uint8_t (range 0 - 255) (0 - 127)
+                    a2dp_sink.disconnect();
+                    //a2dp_sink.reconnect(); - not working, stucks
+                    BTon = true;
                 }
             } else if (cmd == 'N') { // Name
-                Serial.print("Bluetooth name: ");   
+                Serial.print("Bluetooth name: ");
                 int i = 0;
                 while(0 < Wire1.available() && i < 255) // loop through all but the last
                 {
