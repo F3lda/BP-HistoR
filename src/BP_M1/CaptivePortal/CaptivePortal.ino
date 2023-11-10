@@ -142,7 +142,7 @@ void audio_showstreamtitle(const char *info){
     Serial.print("streamtitle ");Serial.println(info);// radio info
     strncpy(AudioTitle, info, 127);
 }
-void listDirFind(fs::FS &fs, const char * dirname, uint8_t levels, const char * filename){
+void listDirFind(fs::FS &fs, const char * dirname, const char * filename){
   
     Serial.print("listDirFind() is running on core ");
     Serial.println(xPortGetCoreID());
@@ -167,9 +167,6 @@ void listDirFind(fs::FS &fs, const char * dirname, uint8_t levels, const char * 
         if(file.isDirectory()){
             Serial.print("  DIR : ");
             Serial.println(file.name());
-            if(levels){
-                listDir(fs, file.path(), levels -1);
-            }
         } else {
             Serial.print("  FILE: ");
             Serial.print(file.name());
@@ -217,7 +214,7 @@ void audio_eof_mp3(const char *info){  //end of file
             AudioLastPlayedSDcardNextTrackPath[1] = '\0';
         }
         
-        listDirFind(SD, AudioLastPlayedSDcardNextTrackPath, 0, info);
+        listDirFind(SD, AudioLastPlayedSDcardNextTrackPath, info);
     }
     
 }
@@ -268,6 +265,51 @@ bool AudioPlayerCreateDescription() {
     return true;
 }
 
+
+#define WEBSERVER_SEND_BUFFER_SIZE 512
+char WebserverSendBuffer[WEBSERVER_SEND_BUFFER_SIZE] = {0};
+int WebserverSendBufferLength = 0;
+void webServer_bufferContentFlush()
+{
+    webServer_bufferContentAddChar("");
+}
+
+void webServer_bufferContentAddChar(const char value[])
+{
+    int value_length = strlen(value);
+    if (WebserverSendBufferLength + value_length >= WEBSERVER_SEND_BUFFER_SIZE || value[0] == '\0') {
+        webServer.sendContent(WebserverSendBuffer);
+        WebserverSendBuffer[0] = '\0';
+        WebserverSendBufferLength = 0;
+    }
+    WebserverSendBufferLength += value_length;
+    strcat(WebserverSendBuffer, value);
+    WebserverSendBuffer[WebserverSendBufferLength] = '\0';
+}
+
+void webServer_bufferContentAddInt(int value)
+{
+    char intvalue[32] = {0};
+    sprintf(intvalue, "%d", value);
+    webServer_bufferContentAddChar(intvalue);
+}
+
+void webServer_bufferContentAddJavascriptSetElementChecked(const char elementId[])
+{
+    webServer_bufferContentAddChar("document.getElementById('");
+    webServer_bufferContentAddChar(elementId);
+    webServer_bufferContentAddChar("').checked = true;\n");
+}
+
+void webServer_bufferContentAddJavascriptSetElementValue(const char elementId[], char value[])
+{
+    webServer_bufferContentAddChar("document.getElementById('");
+    webServer_bufferContentAddChar(elementId);
+    webServer_bufferContentAddChar("').value = \"");
+    webServer_bufferContentAddChar(value);
+    webServer_bufferContentAddChar("\";\n");
+}
+/*
 void webServer_sendContentJavascriptSetElementChecked(const char elementId[])
 {
     webServer.sendContent(F("document.getElementById('"));
@@ -283,7 +325,7 @@ void webServer_sendContentJavascriptSetElementValue(const char elementId[], char
     webServer.sendContent(F("').value = \""));
     webServer.sendContent(value);
     webServer.sendContent(F("\";\n"));
-}
+}*/
 
 String webServer_getArgValue(String argname) 
 {
@@ -343,7 +385,7 @@ void AudioStopAllSources() {
     //TODO
 }
 
-
+/*
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
   
     Serial.print("listDir() is running on core ");
@@ -442,9 +484,114 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
     
     webServer.sendContent(F("</body></html>\n"));
 }
+*/
 
 
 
+void WebserverListDir(fs::FS &fs, const char * dirname)
+{
+    Serial.print("listDir() is running on core ");
+    Serial.println(xPortGetCoreID());
+
+    
+    webServer_bufferContentAddChar("<!DOCTYPE html><html><head><title>HistoR - Music player - select track</title></head><body>");
+    
+    
+    Serial.printf("Listing directory: %s\n", dirname);
+    webServer_bufferContentAddChar("Listing directory: ");
+    webServer_bufferContentAddChar(dirname);
+    webServer_bufferContentAddChar("\n");
+
+    File root = fs.open(dirname);
+    if(!root){
+        Serial.println("Failed to open directory");
+        webServer_bufferContentAddChar("Failed to open directory\n");
+        webServer_bufferContentFlush();
+        return;
+    }
+    if(!root.isDirectory()){
+        Serial.println("Not a directory");
+        root.close();
+        webServer_bufferContentAddChar("Not a directory\n");
+        webServer_bufferContentFlush();
+        return;
+    }
+
+    webServer_bufferContentAddChar("<table><tr><th>Type</th><th>Name</th><th>Size</th></tr>\n");
+    
+    if(dirname[0] == '/' && dirname[1] != '\0'){
+        int slen = strlen(dirname);
+        char stemp[slen+1] = {0};
+        strcpy(stemp, dirname);
+        int i = slen;
+        for(; i > 0; i--) {
+            if(stemp[i] == '/') {
+                stemp[i] = '\0';
+                i = -1;
+            }
+        }
+        if(i == 0) {
+            stemp[1] = '\0';
+        }
+        Serial.print("UP dir: ");
+        Serial.println(stemp);
+        webServer_bufferContentAddChar("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH=");
+        webServer_bufferContentAddChar(stemp);
+        webServer_bufferContentAddChar("'>..</a></td><td></td>\n");
+    }
+    
+
+    File file = root.openNextFile();
+    while(file){
+        webServer_bufferContentAddChar("<tr>\n");
+        if(file.isDirectory()){
+            //Serial.print("  DIR : ");
+            webServer_bufferContentAddChar("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH=");
+            webServer_bufferContentAddChar(dirname);
+            if(dirname[0] == '/' && dirname[1] != '\0'){
+                webServer_bufferContentAddChar("/");
+            }
+            webServer_bufferContentAddChar(file.name());
+            webServer_bufferContentAddChar("'>");
+            //Serial.println(file.name());
+            webServer_bufferContentAddChar(file.name());
+            webServer_bufferContentAddChar("</a></td><td></td>\n");
+        } else {
+            //Serial.print("  FILE: ");
+            webServer_bufferContentAddChar("<td><img title=\"File\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?DOCUMENT=\" />FILE</td><td><a href='./SDSELECT?PATH=");
+            webServer_bufferContentAddChar(dirname);
+            webServer_bufferContentAddChar("&PLAY=");
+            webServer_bufferContentAddChar(dirname);
+            if(dirname[0] == '/' && dirname[1] != '\0'){
+                webServer_bufferContentAddChar("/");
+            }
+            webServer_bufferContentAddChar(file.name());
+            webServer_bufferContentAddChar("'>");
+            //Serial.print(file.name());
+            webServer_bufferContentAddChar(file.name());
+            //Serial.print("  SIZE: ");
+            webServer_bufferContentAddChar("</a></td><td>");
+            //Serial.println(file.size());
+            webServer_bufferContentAddInt(file.size());
+            webServer_bufferContentAddChar("</td>\n");
+        }
+        webServer_bufferContentAddChar("</tr>\n");
+        file = root.openNextFile();
+    }
+    
+    root.close();
+
+    
+    webServer_bufferContentAddChar("</table><br><br><a href='./'>close</a>\n");
+    
+    webServer_bufferContentAddChar("</body></html>\n");
+
+
+    webServer_bufferContentFlush();
+}
+
+
+/*
 void listDirSerial(fs::FS &fs, const char * dirname){
   
     Serial.print("listDir() is running on core ");
@@ -588,7 +735,7 @@ void listDirSerial(fs::FS &fs, const char * dirname){
 
     fileSPIFFS.close();
 }
-
+*/
 
 void setup() {
     /* SETUP USB SERIAL */
@@ -700,14 +847,14 @@ void setup() {
 
 
     /* SPIFFS */
-    if(!SPIFFS.begin(true)) { // if mount fail -> format SPIFFS
+    /*if(!SPIFFS.begin(true)) { // if mount fail -> format SPIFFS
        Serial.println("SPIFFS Mount Failed");
     } else {
         Serial.println("SPIFFS Mount OK");
         //SPIFFS.format(); // -- if format is only quick -> format every setup and when loading page -> check if file exists and dont write it again
         // ELSE -> dont format SPIFFS every setup -> just overwrite file every time page is loaded
     }
-    Serial.println("--------------------");
+    Serial.println("--------------------");*/
 
 
 
@@ -790,7 +937,39 @@ void setup() {
         webServer.setContentLength(CONTENT_LENGTH_UNKNOWN); // https://www.esp8266.com/viewtopic.php?p=73204
         // here begin chunked transfer
         webServer.send(200, "text/html", "<!--- DOCUMENT START --->");
+
+
         webServer.sendContent(FSH(HistoRHomePage));
+        webServer_bufferContentAddChar("<script>\n");
+        // WIFI
+        webServer_bufferContentAddJavascriptSetElementValue("WIFI_SSID", WIFIssid);
+        webServer_bufferContentAddJavascriptSetElementValue("WIFI_PASSWORD", WIFIpassword);
+        webServer_bufferContentAddJavascriptSetElementValue("AP_SSID", APssid);
+        webServer_bufferContentAddJavascriptSetElementValue("AP_PASSWORD", APpassword);
+        if (APactive) {webServer_bufferContentAddJavascriptSetElementChecked("AP_ACTIVE");}
+        // Audio
+        if (AudioCurrentlyPlayingDescription[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("Mplayer", AudioCurrentlyPlayingDescription);}
+        Serial.println(AudioSelectedSource);
+        webServer_bufferContentAddJavascriptSetElementChecked(AudioSelectedSource);
+        if (AudioRandomPlay) {webServer_bufferContentAddJavascriptSetElementChecked("MP_RANDOM");}
+        if (AudioRepeatAll) {webServer_bufferContentAddJavascriptSetElementChecked("MP_REPEAT_ALL");}        
+        if (AudioRepeatOne) {webServer_bufferContentAddJavascriptSetElementChecked("MP_REPEAT_ONE");}
+        if (AudioLastInternetURL[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("INT_URL", AudioLastInternetURL);}
+        if (AudioBluetoothName[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("BT_NAME", AudioBluetoothName);}
+        if (AudioLastRadioFrequency[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("R_FREQ", AudioLastRadioFrequency);}
+        if (AudioAutoPlay) {webServer_bufferContentAddJavascriptSetElementChecked("MP_AUTO");}
+        char str[5]; sprintf(str, "%d", (int)AudioVolume); webServer_bufferContentAddJavascriptSetElementValue("MP_VOLUME", str);
+
+        if (AudioFMtransActive) {webServer_bufferContentAddJavascriptSetElementChecked("FM_ACTIVE");}
+        if (AudioFMtransFrequency[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("FM_FREQ", AudioFMtransFrequency);}
+        if (AudioAMtransActive) {webServer_bufferContentAddJavascriptSetElementChecked("AM_ACTIVE");}
+        //if (AudioAMtransFrequency[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("", AudioAMtransFrequency);}
+        
+        webServer_bufferContentAddChar("</script>\n");
+        
+        webServer_bufferContentFlush();
+        
+        /*webServer.sendContent(FSH(HistoRHomePage));
         webServer.sendContent(F("<script>\n"));
         // WIFI
         webServer_sendContentJavascriptSetElementValue("WIFI_SSID", WIFIssid);
@@ -816,7 +995,10 @@ void setup() {
         if (AudioAMtransActive) {webServer_sendContentJavascriptSetElementChecked("AM_ACTIVE");}
         //if (AudioAMtransFrequency[0] != '\0') {webServer_sendContentJavascriptSetElementValue("", AudioAMtransFrequency);}
         
-        webServer.sendContent(F("</script>\n"));
+        webServer.sendContent(F("</script>\n"));*/
+
+
+        
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
 
@@ -1123,8 +1305,8 @@ void setup() {
     
     webServer.on("/SDSELECT", HTTP_GET, []() {
 
-      Serial.print("SDSELECT is running on core ");
-    Serial.println(xPortGetCoreID());
+        Serial.print("SDSELECT is running on core ");
+        Serial.println(xPortGetCoreID());
         
         
         if (webServer.hasArg("PLAY")) {
@@ -1155,12 +1337,13 @@ void setup() {
         
         webServer.setContentLength(CONTENT_LENGTH_UNKNOWN); // https://www.esp8266.com/viewtopic.php?p=73204
         // here begin chunked transfer
-        webServer.send(200, "text/html", "");
+        webServer.send(200, "text/html", "<!--- DOCUMENT START --->");
 
         
 
         //listDir(SD, path, 0);
-        listDirSerial(SD, path);
+        //listDirSerial(SD, path);
+        WebserverListDir(SD, path);
         
 
         
