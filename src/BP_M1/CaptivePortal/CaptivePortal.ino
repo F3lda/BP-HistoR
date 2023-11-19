@@ -88,10 +88,10 @@ char AudioAMtransFrequency[8] = {0};
 
 bool SDcardAlbumPlaying = false;
 char SDcardNextTrackPath[512] = {0};
-void AudioSDcardPlayTrack(void *parameter)
+void AudioPlayerSDcardPlayTrack(void *parameter)
 {
     SDcardAlbumPlaying = true;
-    
+
     if(parameter != NULL){
         strcpy(SDcardNextTrackPath, (const char *)parameter);
     } else {
@@ -102,16 +102,16 @@ void AudioSDcardPlayTrack(void *parameter)
 
     audioStopSong();
     audioConnecttoSD(SDcardNextTrackPath);
-    
+
     strcpy(AudioSelectedSource, "MP_SDcard"); // set SDcard audio source
     strcpy(AudioLastPlayedTrack, SDcardNextTrackPath);
     strcpy(AudioCurrentlyPlayingDescription, SDcardNextTrackPath);
-    
+
     preferences.begin("my-app", false);
     preferences.putBytes("AU_SOURCE", AudioSelectedSource, 32);
     preferences.putBytes("AU_LAST_TRACK", AudioLastPlayedTrack, 255);
     preferences.end();
-    
+
     SDcardNextTrackPath[0] = '\0';
 }
 
@@ -142,13 +142,13 @@ void audio_showstreamtitle(const char *info){
     Serial.print("streamtitle ");Serial.println(info);// radio info
     strncpy(AudioTitle, info, 127);
 }
-void listDirFind(fs::FS &fs, const char * dirname, const char * filename){
-  
-    Serial.print("listDirFind() is running on core ");
+void AudioPlayerSDcardFindTrack(fs::FS &fs, const char * dirname, const char * filename){
+
+    Serial.print("AudioPlayerSDcardFindTrack() is running on core ");
     Serial.println(xPortGetCoreID());
-    
+
     Serial.printf("Listing directory: %s\n", dirname);
-    
+
     File root = fs.open(dirname);
     if(!root){
         Serial.println("Failed to open directory");
@@ -160,10 +160,10 @@ void listDirFind(fs::FS &fs, const char * dirname, const char * filename){
     }
 
     bool lastTrackFound = false;
-    
+
     File file = root.openNextFile();
     while(file){
-        
+
         if(file.isDirectory()){
             Serial.print("  DIR : ");
             Serial.println(file.name());
@@ -200,7 +200,7 @@ void audio_eof_mp3(const char *info){  //end of file
     Serial.print("SDcardAlbumPlaying: ");
     Serial.println(SDcardAlbumPlaying);
 
-    if(SDcardAlbumPlaying == true) {//audioisrunning == false && 
+    if(SDcardAlbumPlaying == true) {//audioisrunning == false &&
         char AudioLastPlayedSDcardNextTrackPath[256] = {0};
         strcpy(AudioLastPlayedSDcardNextTrackPath, AudioLastPlayedTrack);
         int i = strlen(AudioLastPlayedSDcardNextTrackPath);
@@ -213,10 +213,10 @@ void audio_eof_mp3(const char *info){  //end of file
         if(i == 0) {
             AudioLastPlayedSDcardNextTrackPath[1] = '\0';
         }
-        
-        listDirFind(SD, AudioLastPlayedSDcardNextTrackPath, info);
+
+        AudioPlayerSDcardFindTrack(SD, AudioLastPlayedSDcardNextTrackPath, info);
     }
-    
+
 }
 void audioStartStop(bool audioisrunning){
     Serial.print("audioisrunning    ");Serial.println(audioisrunning);
@@ -265,6 +265,22 @@ bool AudioPlayerCreateDescription() {
     return true;
 }
 
+void AudioPlayerStopAllSources() {
+    // Stop SDcard + Internet
+    SDcardAlbumPlaying = false;
+    audioStopSong();
+    // Stop Bluetooth
+    Wire.beginTransmission(BP_ESP_SLAVE_ID);
+    Wire.write(0);
+    Wire.write(0);
+    Wire.write("BO");
+    Wire.write(0);
+    Wire.endTransmission();
+    // Stop radio
+    //TODO
+}
+
+
 
 #define WEBSERVER_SEND_BUFFER_SIZE 512
 char WebserverSendBuffer[WEBSERVER_SEND_BUFFER_SIZE] = {0};
@@ -309,25 +325,8 @@ void webServer_bufferContentAddJavascriptSetElementValue(const char elementId[],
     webServer_bufferContentAddChar(value);
     webServer_bufferContentAddChar("\";\n");
 }
-/*
-void webServer_sendContentJavascriptSetElementChecked(const char elementId[])
-{
-    webServer.sendContent(F("document.getElementById('"));
-    webServer.sendContent(elementId);
-    webServer.sendContent(F("').checked = true;\n"));
-}
 
-
-void webServer_sendContentJavascriptSetElementValue(const char elementId[], char value[])
-{
-    webServer.sendContent(F("document.getElementById('"));
-    webServer.sendContent(elementId);
-    webServer.sendContent(F("').value = \""));
-    webServer.sendContent(value);
-    webServer.sendContent(F("\";\n"));
-}*/
-
-String webServer_getArgValue(String argname) 
+String webServer_getArgValue(String argname)
 {
     for (int i=0; i < webServer.args(); i++) {
         if (webServer.argName(i) == argname){
@@ -337,166 +336,31 @@ String webServer_getArgValue(String argname)
     return "";
 }
 
-void webServer_printArgs()
+void WebServerPrintArgs()
 {
       String message = "Number of args received:";
       message += webServer.args();            //Get number of parameters
       message += "\n";                            //Add a new line
-      
+
       for (int i = 0; i < webServer.args(); i++) {
-      
+
           message += "Arg n#" + (String)i + " –> ";   //Include the current iteration value
           message += webServer.argName(i) + ": ";     //Get the name of the parameter
           message += webServer.arg(i) + "\n";              //Get the value of the parameter
-      
+
       }
       Serial.println(message);
 }
-
-bool isIP(String str) {
-  for (int i = 0; i < str.length(); i++) {
-    int c = str.charAt(i);
-    if (!(c == '.' || (c >= '0' && c <= '9'))) {
-      return false;
-    }
-  }
-  return true;
-}
-
-
-bool I2CaddressIsActive(byte address) {
-    Wire.begin();
-    Wire.beginTransmission(address);
-    return !Wire.endTransmission();
-}
-
-void AudioStopAllSources() {
-    // Stop SDcard + Internet
-    SDcardAlbumPlaying = false;
-    audioStopSong();
-    // Stop Bluetooth
-    Wire.beginTransmission(BP_ESP_SLAVE_ID);
-    Wire.write(0);
-    Wire.write(0);
-    Wire.write("BO");
-    Wire.write(0);
-    Wire.endTransmission();
-    // Stop radio
-    //TODO
-}
-
-/*
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-  
-    Serial.print("listDir() is running on core ");
-    Serial.println(xPortGetCoreID());
-
-    
-    webServer.sendContent(F("<!DOCTYPE html><html><head><title>HistoR - Music player - select track</title></head><body>"));
-    
-    
-    Serial.printf("Listing directory: %s\n", dirname);
-    webServer.sendContent(F("Listing directory: "));
-    webServer.sendContent(dirname);
-    webServer.sendContent(F("\n"));
-
-    File root = fs.open(dirname);
-    if(!root){
-        Serial.println("Failed to open directory");
-        webServer.sendContent(F("Failed to open directory\n"));
-        return;
-    }
-    if(!root.isDirectory()){
-        Serial.println("Not a directory");
-        webServer.sendContent(F("Not a directory\n"));
-        return;
-    }
-
-    webServer.sendContent(F("<table><tr><th>Type</th><th>Name</th><th>Size</th></tr>\n"));
-    
-    if(dirname[0] == '/' && dirname[1] != '\0'){
-        int slen = strlen(dirname);
-        char stemp[slen+1] = {0};
-        strcpy(stemp, dirname);
-        int i = slen;
-        for(; i > 0; i--) {
-            if(stemp[i] == '/') {
-                stemp[i] = '\0';
-                i = -1;
-            }
-        }
-        if(i == 0) {
-            stemp[1] = '\0';
-        }
-        Serial.print("UP dir: ");
-        Serial.println(stemp);
-        webServer.sendContent(F("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH="));
-        webServer.sendContent(stemp);
-        webServer.sendContent(F("'>..</a></td><td></td>\n"));
-    }
-    
-
-    File file = root.openNextFile();
-    while(file){
-        webServer.sendContent(F("<tr>\n"));
-        if(file.isDirectory()){
-            Serial.print("  DIR : ");
-            webServer.sendContent(F("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH="));
-            webServer.sendContent(dirname);
-            if(dirname[0] == '/' && dirname[1] != '\0'){
-                webServer.sendContent(F("/"));
-            }
-            webServer.sendContent(file.name());
-            webServer.sendContent(F("'>"));
-            Serial.println(file.name());
-            webServer.sendContent(file.name());
-            webServer.sendContent(F("</a></td><td></td>\n"));
-            if(levels){
-                listDir(fs, file.path(), levels -1);
-            }
-        } else {
-            Serial.print("  FILE: ");
-            webServer.sendContent(F("<td><img title=\"File\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?DOCUMENT=\" />FILE</td><td><a href='./SDSELECT?PATH="));
-            webServer.sendContent(dirname);
-            webServer.sendContent(F("&PLAY="));
-            webServer.sendContent(dirname);
-            if(dirname[0] == '/' && dirname[1] != '\0'){
-                webServer.sendContent(F("/"));
-            }
-            webServer.sendContent(file.name());
-            webServer.sendContent(F("'>"));
-            Serial.print(file.name());
-            webServer.sendContent(file.name());
-            Serial.print("  SIZE: ");
-            webServer.sendContent(F("</a></td><td>"));
-            Serial.println(file.size());
-            webServer.sendContent(String(file.size()));
-            webServer.sendContent(F("</td>\n"));
-        }
-        webServer.sendContent(F("</tr>\n"));
-        file = root.openNextFile();
-    }
-    
-    root.close();
-
-    
-    webServer.sendContent(F("</table><br><br><a href='./'>close</a>\n"));
-    
-    webServer.sendContent(F("</body></html>\n"));
-}
-*/
-
-
 
 void WebserverListDir(fs::FS &fs, const char * dirname)
 {
     Serial.print("listDir() is running on core ");
     Serial.println(xPortGetCoreID());
 
-    
+
     webServer_bufferContentAddChar("<!DOCTYPE html><html><head><title>HistoR - Music player - select track</title></head><body>");
-    
-    
+
+
     Serial.printf("Listing directory: %s\n", dirname);
     webServer_bufferContentAddChar("Listing directory: ");
     webServer_bufferContentAddChar(dirname);
@@ -518,7 +382,7 @@ void WebserverListDir(fs::FS &fs, const char * dirname)
     }
 
     webServer_bufferContentAddChar("<table><tr><th>Type</th><th>Name</th><th>Size</th></tr>\n");
-    
+
     if(dirname[0] == '/' && dirname[1] != '\0'){
         int slen = strlen(dirname);
         char stemp[slen+1] = {0};
@@ -539,7 +403,7 @@ void WebserverListDir(fs::FS &fs, const char * dirname)
         webServer_bufferContentAddChar(stemp);
         webServer_bufferContentAddChar("'>..</a></td><td></td>\n");
     }
-    
+
 
     File file = root.openNextFile();
     while(file){
@@ -578,12 +442,12 @@ void WebserverListDir(fs::FS &fs, const char * dirname)
         webServer_bufferContentAddChar("</tr>\n");
         file = root.openNextFile();
     }
-    
+
     root.close();
 
-    
+
     webServer_bufferContentAddChar("</table><br><br><a href='./'>close</a>\n");
-    
+
     webServer_bufferContentAddChar("</body></html>\n");
 
 
@@ -591,151 +455,25 @@ void WebserverListDir(fs::FS &fs, const char * dirname)
 }
 
 
-/*
-void listDirSerial(fs::FS &fs, const char * dirname){
-  
-    Serial.print("listDir() is running on core ");
-    Serial.println(xPortGetCoreID());
-    
-    
-    char path[strlen(dirname)+15];
-    strcpy(path, dirname);
-    if(dirname[0] == '/' && dirname[1] != '\0'){
-        strcat(path, "/");
+
+bool isIP(String str) {
+  for (int i = 0; i < str.length(); i++) {
+    int c = str.charAt(i);
+    if (!(c == '.' || (c >= '0' && c <= '9'))) {
+      return false;
     }
-    strcat(path, "dirList.txt\0");
-    Serial.printf("Saving path: %s\n", path);
-    File fileSPIFFS = SPIFFS.open(path, FILE_WRITE);
-    if (!fileSPIFFS) {
-       Serial.println("– failed to open file for writing");
-       return;
-    }
-
-
-
-    fileSPIFFS.print(F("<!DOCTYPE html><html><head><title>HistoR - Music player - select track</title></head><body>"));
-    
-    
-    Serial.printf("Listing directory: %s\n", dirname);
-    fileSPIFFS.print(F("Listing directory: "));
-    fileSPIFFS.print(dirname);
-    fileSPIFFS.print(F("\n"));
-
-    File root = fs.open(dirname);
-    if(!root){
-        Serial.println("Failed to open directory");
-        root.close();
-        fileSPIFFS.print(F("Failed to open directory\n"));
-        fileSPIFFS.close();
-        return;
-    }
-    if(!root.isDirectory()){
-        Serial.println("Not a directory");
-        root.close();
-        fileSPIFFS.print(F("Not a directory\n"));
-        fileSPIFFS.close();
-        return;
-    }
-
-    fileSPIFFS.print(F("<table><tr><th>Type</th><th>Name</th><th>Size</th></tr>\n"));
-    
-    if(dirname[0] == '/' && dirname[1] != '\0'){
-        int slen = strlen(dirname);
-        char stemp[slen+1] = {0};
-        strcpy(stemp, dirname);
-        int i = slen;
-        for(; i > 0; i--) {
-            if(stemp[i] == '/') {
-                stemp[i] = '\0';
-                i = -1;
-            }
-        }
-        if(i == 0) {
-            stemp[1] = '\0';
-        }
-        Serial.print("UP dir: ");
-        Serial.println(stemp);
-        fileSPIFFS.print(F("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH="));
-        fileSPIFFS.print(stemp);
-        fileSPIFFS.print(F("'>..</a></td><td></td>\n"));
-    }
-    
-
-    File file = root.openNextFile();
-    while(file){
-        fileSPIFFS.print(F("<tr>\n"));
-        if(file.isDirectory()){
-            //Serial.print("  DIR : ");
-            fileSPIFFS.print(F("<td><img title=\"Folder\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?FOLDER=\" />DIR</td><td><a href='./SDSELECT?PATH="));
-            fileSPIFFS.print(dirname);
-            if(dirname[0] == '/' && dirname[1] != '\0'){
-                fileSPIFFS.print(F("/"));
-            }
-            fileSPIFFS.print(file.name());
-            fileSPIFFS.print(F("'>"));
-            //Serial.println(file.name());
-            fileSPIFFS.print(file.name());
-            fileSPIFFS.print(F("</a></td><td></td>\n"));
-        } else {
-            //Serial.print("  FILE: ");
-            fileSPIFFS.print(F("<td><img title=\"File\" width=\"20px\" style=\"margin-bottom:-4px\" src=\"./IMG?DOCUMENT=\" />FILE</td><td><a href='./SDSELECT?PATH="));
-            fileSPIFFS.print(dirname);
-            fileSPIFFS.print(F("&PLAY="));
-            fileSPIFFS.print(dirname);
-            if(dirname[0] == '/' && dirname[1] != '\0'){
-                fileSPIFFS.print(F("/"));
-            }
-            fileSPIFFS.print(file.name());
-            fileSPIFFS.print(F("'>"));
-            //Serial.print(file.name());
-            fileSPIFFS.print(file.name());
-            //Serial.print("  SIZE: ");
-            fileSPIFFS.print(F("</a></td><td>"));
-            //Serial.println(file.size());
-            fileSPIFFS.print(String(file.size()));
-            fileSPIFFS.print(F("</td>\n"));
-        }
-        fileSPIFFS.print(F("</tr>\n"));
-        file = root.openNextFile();
-    }
-    
-    root.close();
-
-    
-    fileSPIFFS.print(F("</table><br><br><a href='./'>close</a>\n"));
-    
-    fileSPIFFS.print(F("</body></html>\n"));
-
-
-
-    fileSPIFFS.close();
-
-
-
-
-
-    Serial.printf("Reading file: %s\r\n", path);
-
-    fileSPIFFS = SPIFFS.open(path);
-    if (!fileSPIFFS || fileSPIFFS.isDirectory()){
-       Serial.println("– failed to open file for reading");
-       if(fileSPIFFS.isDirectory()){
-          fileSPIFFS.close();
-       }
-       return;
-    }
-
-    Serial.println("– read from file:");
-    char buff[512] = {0};
-    while(fileSPIFFS.available()) {
-        size_t bytes = fileSPIFFS.readBytes(buff, 511);
-        buff[bytes] = '\0';
-        webServer.sendContent(buff);
-    }
-
-    fileSPIFFS.close();
+  }
+  return true;
 }
-*/
+
+
+bool I2CaddressIsActive(byte address) {
+    Wire.begin();
+    Wire.beginTransmission(address);
+    return !Wire.endTransmission();
+}
+
+
 
 void setup() {
     /* SETUP USB SERIAL */
@@ -745,10 +483,10 @@ void setup() {
     Serial.print("setup() is running on core ");
     Serial.println(xPortGetCoreID());
     Serial.println("--------------------");
-    
+
 
     /* PREFERENCES */ //TODO reset button
-    /* // completely remove non-volatile storage (nvs) 
+    /* // completely remove non-volatile storage (nvs)
      * #include <nvs_flash.h>
     nvs_flash_erase(); // erase the NVS partition and...
     nvs_flash_init(); // initialize the NVS partition.
@@ -791,7 +529,7 @@ void setup() {
         lcd.begin();
         // zapnutí podsvícení
         lcd.backlight();
-        
+
         lcd.setCursor(0, 1);
         lcd.print(AudioCurrentlyPlayingDescription);
         lcd.setCursor(0, 0);
@@ -846,20 +584,6 @@ void setup() {
 
 
 
-    /* SPIFFS */
-    /*if(!SPIFFS.begin(true)) { // if mount fail -> format SPIFFS
-       Serial.println("SPIFFS Mount Failed");
-    } else {
-        Serial.println("SPIFFS Mount OK");
-        //SPIFFS.format(); // -- if format is only quick -> format every setup and when loading page -> check if file exists and dont write it again
-        // ELSE -> dont format SPIFFS every setup -> just overwrite file every time page is loaded
-    }
-    Serial.println("--------------------");*/
-
-
-
-
-
     /* AUDIO */
     audioInit();
     delay(1500);
@@ -909,7 +633,7 @@ void setup() {
     webServer.onNotFound([]() {
         Serial.print("WEBSERVER is running on core ");
         Serial.println(xPortGetCoreID());
-      
+
         String requestUri = webServer.uri(); //.toCharArray(requestUri, sizeof(requestUri) + 1);
         if (webServer.args() > 0) {
           requestUri += "?";
@@ -952,7 +676,7 @@ void setup() {
         Serial.println(AudioSelectedSource);
         webServer_bufferContentAddJavascriptSetElementChecked(AudioSelectedSource);
         if (AudioRandomPlay) {webServer_bufferContentAddJavascriptSetElementChecked("MP_RANDOM");}
-        if (AudioRepeatAll) {webServer_bufferContentAddJavascriptSetElementChecked("MP_REPEAT_ALL");}        
+        if (AudioRepeatAll) {webServer_bufferContentAddJavascriptSetElementChecked("MP_REPEAT_ALL");}
         if (AudioRepeatOne) {webServer_bufferContentAddJavascriptSetElementChecked("MP_REPEAT_ONE");}
         if (AudioLastInternetURL[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("INT_URL", AudioLastInternetURL);}
         if (AudioBluetoothName[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("BT_NAME", AudioBluetoothName);}
@@ -964,52 +688,23 @@ void setup() {
         if (AudioFMtransFrequency[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("FM_FREQ", AudioFMtransFrequency);}
         if (AudioAMtransActive) {webServer_bufferContentAddJavascriptSetElementChecked("AM_ACTIVE");}
         //if (AudioAMtransFrequency[0] != '\0') {webServer_bufferContentAddJavascriptSetElementValue("", AudioAMtransFrequency);}
-        
+
         webServer_bufferContentAddChar("</script>\n");
-        
+
         webServer_bufferContentFlush();
-        
-        /*webServer.sendContent(FSH(HistoRHomePage));
-        webServer.sendContent(F("<script>\n"));
-        // WIFI
-        webServer_sendContentJavascriptSetElementValue("WIFI_SSID", WIFIssid);
-        webServer_sendContentJavascriptSetElementValue("WIFI_PASSWORD", WIFIpassword);
-        webServer_sendContentJavascriptSetElementValue("AP_SSID", APssid);
-        webServer_sendContentJavascriptSetElementValue("AP_PASSWORD", APpassword);
-        if (APactive) {webServer.sendContent(F("document.getElementById('AP_ACTIVE').checked = true;\n"));}
-        // Audio
-        if (AudioCurrentlyPlayingDescription[0] != '\0') {webServer_sendContentJavascriptSetElementValue("Mplayer", AudioCurrentlyPlayingDescription);}
-        Serial.println(AudioSelectedSource);
-        webServer_sendContentJavascriptSetElementChecked(AudioSelectedSource);
-        if (AudioRandomPlay) {webServer_sendContentJavascriptSetElementChecked("MP_RANDOM");}
-        if (AudioRepeatAll) {webServer_sendContentJavascriptSetElementChecked("MP_REPEAT_ALL");}        
-        if (AudioRepeatOne) {webServer_sendContentJavascriptSetElementChecked("MP_REPEAT_ONE");}
-        if (AudioLastInternetURL[0] != '\0') {webServer_sendContentJavascriptSetElementValue("INT_URL", AudioLastInternetURL);}
-        if (AudioBluetoothName[0] != '\0') {webServer_sendContentJavascriptSetElementValue("BT_NAME", AudioBluetoothName);}
-        if (AudioLastRadioFrequency[0] != '\0') {webServer_sendContentJavascriptSetElementValue("R_FREQ", AudioLastRadioFrequency);}
-        if (AudioAutoPlay) {webServer_sendContentJavascriptSetElementChecked("MP_AUTO");}
-        char str[5]; sprintf(str, "%d", (int)AudioVolume); webServer_sendContentJavascriptSetElementValue("MP_VOLUME", str);
-
-        if (AudioFMtransActive) {webServer_sendContentJavascriptSetElementChecked("FM_ACTIVE");}
-        if (AudioFMtransFrequency[0] != '\0') {webServer_sendContentJavascriptSetElementValue("FM_FREQ", AudioFMtransFrequency);}
-        if (AudioAMtransActive) {webServer_sendContentJavascriptSetElementChecked("AM_ACTIVE");}
-        //if (AudioAMtransFrequency[0] != '\0') {webServer_sendContentJavascriptSetElementValue("", AudioAMtransFrequency);}
-        
-        webServer.sendContent(F("</script>\n"));*/
 
 
-        
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
 
         Serial.println("\nHome Page Loaded!\n");
     });
-    
+
     webServer.on("/API/", HTTP_GET, []() {
-        webServer_printArgs();
-        
+        WebServerPrintArgs();
+
         preferences.begin("my-app", false);
-  
+
         if (webServer.hasArg("CMD")) {
             String cmd = webServer_getArgValue("CMD");
             char temp[64] = {0};
@@ -1050,13 +745,13 @@ void setup() {
                 preferences.end();
                 webServer.send(200, "text/plain", "RESTART OK!");
                 webServer.client().stop();
-  
+
                 delay(1500);
                 ESP.restart();
             } else if (cmd == "MPSELECT") {
                 String cmd2 = webServer_getArgValue("CMD2");
                 String source = webServer_getArgValue("MPselected");
-                
+
                 if(cmd2 == "SAVEPLAY" || cmd2 == "SAVE") { // SAVE
                     char temp_str[256] = {0};
                     String bin = "";
@@ -1065,7 +760,7 @@ void setup() {
                         webServer_getArgValue("MPselected").toCharArray(temp_str, 31);
                         preferences.putBytes("AU_SOURCE", temp_str, 31);
                         if (strcmp(AudioSelectedSource, temp_str) != 0) { // source changed -> stop all
-                            AudioStopAllSources();
+                            AudioPlayerStopAllSources();
                         }
                         strcpy(AudioSelectedSource, temp_str);
                     }
@@ -1143,11 +838,11 @@ void setup() {
                         }
                     }
                 }
-                
+
                 if(cmd2 == "SAVEPLAY") { // PLAY
                     AudioCurrentlyPlayingDescription[0] = '\0';
                     if (source == "MP_SDcard") {
-                        AudioSDcardPlayTrack(AudioLastPlayedTrack);
+                        AudioPlayerSDcardPlayTrack(AudioLastPlayedTrack);
                     } else if (source == "MP_Internet") {
                         audioStopSong();
                         strcpy(AudioCurrentlyPlayingDescription, AudioLastInternetURL);
@@ -1216,7 +911,7 @@ void setup() {
                         Wire.endTransmission();
                     }
                 }
-            
+
             } else if (cmd == "TRANS") { // transmitters
                 // FM active
                 if (webServer.hasArg("FM_ACTIVE")) {
@@ -1247,51 +942,31 @@ void setup() {
                         AudioAMtransActive = false;
                     }
                 }
-            
+
             } else if (cmd == "DESC") { // Currently playing description
-              
+
                 Serial.print("DESC: ");
                 Serial.println(AudioCurrentlyPlayingDescription);
                 preferences.end();
                 webServer.send(200, "text/plain", AudioCurrentlyPlayingDescription);
                 webServer.client().stop();
-            
+
             }
         }
-  
+
         preferences.end();
-        
+
         webServer.send(200, "text/plain", "OK");       //Response to the HTTP request
         webServer.client().stop();
     });
 
 
 
-    /*webServer.on("/STOPAP", HTTP_GET, []() {
-      
-        Serial.println("STOP AP!");
-        WiFi.softAPdisconnect(true);
-        
-        webServer.send(200, "text/html", "STOP AP!");
-        webServer.client().stop();
-    });
-
-
-    webServer.on("/STARTAP", HTTP_GET, []() {
-      
-        Serial.println("START AP!");
-        WiFi.softAP(APssid, APpassword);
-  
-        webServer.send(200, "text/html", "START AP!");
-        webServer.client().stop();
-    });*/
-
-
 
     webServer.on("/RESTART", HTTP_GET, []() {
-        
+
         Serial.println("RESTART OK!");
-  
+
         webServer.send(200, "text/html", "RESTART OK!\n<br><br><a href='./'>Home Page</a>");
         webServer.client().stop();
 
@@ -1302,21 +977,21 @@ void setup() {
 
 
 
-    
+
     webServer.on("/SDSELECT", HTTP_GET, []() {
 
         Serial.print("SDSELECT is running on core ");
         Serial.println(xPortGetCoreID());
-        
-        
+
+
         if (webServer.hasArg("PLAY")) {
             char path[256] = {0};
             webServer_getArgValue("PLAY").toCharArray(path, 255);
             Serial.print("PLAY AUDIO: ");
             Serial.println(path);
 
-            AudioStopAllSources();
-            AudioSDcardPlayTrack(path);
+            AudioPlayerStopAllSources();
+            AudioPlayerSDcardPlayTrack(path);
 
             // redirect
             webServer.sendHeader("Location", "./", true);
@@ -1325,7 +1000,7 @@ void setup() {
             return;
         }
 
-        
+
 
         char path[256] = {0};
         if (webServer.hasArg("PATH")) {
@@ -1334,26 +1009,24 @@ void setup() {
             path[0] = '/';
             path[1] = '\0';
         }
-        
+
         webServer.setContentLength(CONTENT_LENGTH_UNKNOWN); // https://www.esp8266.com/viewtopic.php?p=73204
         // here begin chunked transfer
         webServer.send(200, "text/html", "<!--- DOCUMENT START --->");
 
-        
 
-        //listDir(SD, path, 0);
-        //listDirSerial(SD, path);
+
         WebserverListDir(SD, path);
-        
 
-        
+
+
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
     });
 
 
 
-    
+
     webServer.on("/WIFISCAN", HTTP_GET, []() {
 
         webServer.setContentLength(CONTENT_LENGTH_UNKNOWN); // https://www.esp8266.com/viewtopic.php?p=73204
@@ -1361,10 +1034,10 @@ void setup() {
         webServer.send(200, "text/html", "");
 
         webServer_bufferContentAddChar("<!DOCTYPE html><html><head><title>HistoR - WIFI SCANNER</title></head><body>");
-        
+
         Serial.println("Scan start");
         webServer_bufferContentAddChar("Scan start\n");
-    
+
         // WiFi.scanNetworks will return the number of networks found.
         int n = WiFi.scanNetworks();
         Serial.println("Scan done");
@@ -1447,25 +1120,25 @@ void setup() {
         }
         Serial.println("");
         webServer_bufferContentAddChar("</table>\n");
-    
+
         // Delete the scan result to free memory for code below.
         WiFi.scanDelete();
 
-  
+
         webServer_bufferContentAddChar("<br><br><a href='javascript:window.close();'>close</a>\n");
-        
+
         webServer_bufferContentAddChar("</body></html>\n");
 
         webServer_bufferContentFlush();
-        
 
-        
+
+
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
     });
 
 
-        webServer.on("/IMG", HTTP_GET, []() {
+    webServer.on("/IMG", HTTP_GET, []() {
 
         if (webServer.hasArg("DOCUMENT")) {
             webServer.send_P(200, "image/png", (const char*)document_png, document_png_len);
@@ -1475,8 +1148,8 @@ void setup() {
             webServer.client().stop();
         }
     });
-    
-  
+
+
     webServer.begin();
 
     //TODO autoplay
@@ -1521,7 +1194,7 @@ void loop() {
                 Serial.print("IP address: ");
                 Serial.println(WiFi.localIP());
                 Serial.println("--------------------");
-                
+
                 lcd.setCursor(0, 0);
                 lcd.print("IP:");
                 lcd.print(WiFi.localIP());
@@ -1546,7 +1219,7 @@ void loop() {
     }
 
     if (SDcardNextTrackPath[0] != '\0') { // play next track
-        AudioSDcardPlayTrack(NULL);
+        AudioPlayerSDcardPlayTrack(NULL);
     }
 
 
@@ -1558,7 +1231,7 @@ void loop() {
         static byte x = 0;
         Wire.beginTransmission(BP_ESP_SLAVE_ID); // transmit to device #8
         Wire.write("x is ");        // sends five bytes
-        Wire.write(x++);              // sends one byte  
+        Wire.write(x++);              // sends one byte
         Wire.endTransmission();    // stop transmitting
 
         // Receive

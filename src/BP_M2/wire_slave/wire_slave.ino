@@ -22,7 +22,7 @@ int BTvolume = 127; // 0 - 127
 
 // for esp_a2d_connection_state_t see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/bluetooth/esp_a2dp.html#_CPPv426esp_a2d_connection_state_t
 void connection_state_changed(esp_a2d_connection_state_t state, void *ptr){ // {"Disconnected", "Connecting", "Connected", "Disconnecting"}
-    Serial.println(a2dp_sink.to_str(state));    
+    Serial.println(a2dp_sink.to_str(state));
 }
 
 // for esp_a2d_audio_state_t see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/bluetooth/esp_a2dp.html#_CPPv421esp_a2d_audio_state_t
@@ -31,9 +31,9 @@ void audio_state_changed(esp_a2d_audio_state_t state, void *ptr){ // {"Suspended
 }
 
 void audio_volume_changed(int volume) {
-  Serial.print("Volume: ");
-  Serial.println(volume);
-  BTvolume = volume;
+    Serial.print("Volume: ");
+    Serial.println(volume);
+    BTvolume = volume;
 }
 
 
@@ -53,8 +53,8 @@ char rdsBuffer[256] = {0};
 
 void RadioDisplayInfo()
 {
-   Serial.print("Channel:"); Serial.print(channel); 
-   Serial.print(" Volume:"); Serial.println(volume); 
+    Serial.print("Channel:"); Serial.print(channel);
+    Serial.print(" Volume:"); Serial.println(volume);
 }
 
 
@@ -111,7 +111,7 @@ void setup() {
         Serial.println("Couldn't find radio?");
     }
     delay(2000);  // maybe needed for initial power???
-  
+
     // Uncomment to scan power of entire range from 87.5 to 108.0 MHz
     /*
     for (uint16_t f  = 8750; f<10800; f+=10) {
@@ -120,36 +120,36 @@ void setup() {
      radio.readTuneStatus();
      Serial.println(radio.currNoiseLevel);
      }*/
-     
-  
+
+
     Serial.print("\nSet TX power");
     FMtrans.setTXpower(115);  // dBuV, 88-115 max
-  
-    Serial.print("\nTuning into "); 
-    Serial.print(FMSTATION/100); 
-    Serial.print('.'); 
+
+    Serial.print("\nTuning into ");
+    Serial.print(FMSTATION/100);
+    Serial.print('.');
     Serial.println(FMSTATION % 100);
     FMtrans.tuneFM(FMSTATION); // 102.3 mhz
-  
+
     // This will tell you the status in case you want to read it from the chip
     FMtrans.readTuneStatus();
-    Serial.print("\tCurr freq: "); 
+    Serial.print("\tCurr freq: ");
     Serial.println(FMtrans.currFreq);
-    Serial.print("\tCurr freqdBuV:"); 
+    Serial.print("\tCurr freqdBuV:");
     Serial.println(FMtrans.currdBuV);
-    Serial.print("\tCurr ANTcap:"); 
+    Serial.print("\tCurr ANTcap:");
     Serial.println(FMtrans.currAntCap);
-  
+
     // begin the RDS/RDBS transmission
     FMtrans.beginRDS();
     FMtrans.setRDSstation((char *)"HistoR"); // max 8 chars
     FMtrans.setRDSbuffer((char *)"HistoRadio FM Live!");
-    Serial.println("RDS on!");  
+    Serial.println("RDS on!");
 
 
-    
 
-  
+
+
 
     Serial.println("ESP slave ON!");
 }
@@ -158,20 +158,20 @@ void setup() {
 
 void loop() {
     // FM transmitter
-    Serial.print("Tuned into "); 
-    Serial.print(FMSTATION/100); 
-    Serial.print('.'); 
+    Serial.print("Tuned into ");
+    Serial.print(FMSTATION/100);
+    Serial.print('.');
     Serial.print(FMSTATION % 100);
     Serial.println(" FM");
-    
+
     FMtrans.readASQ(); // audio signal quality status
-    Serial.print("\tCurr ASQ: 0x"); 
+    Serial.print("\tCurr ASQ: 0x");
     Serial.print(FMtrans.currASQ, HEX);
     Serial.print(" (");
     printBits(FMtrans.currASQ);
     Serial.println(") [Overmodulation; High Audio; Low Audio] 0 = OK");
-    
-    Serial.print("\tCurr InLevel (input audio volume range: from 0 to about -10 (dB)):"); 
+
+    Serial.print("\tCurr InLevel (input audio volume range: from 0 to about -10 (dB)):");
     Serial.println(FMtrans.currInLevel);
 
 
@@ -213,7 +213,7 @@ void RDSlisten(void * param)
     Serial.println("RDS listening");
     radio.readRDS(rdsBuffer, 15000);
     Serial.print("RDS heard:");
-    Serial.println(rdsBuffer); 
+    Serial.println(rdsBuffer);
 }
 
 void receiveEvent(int bytesLength) { // bytes: 00[device][cmd][data...
@@ -270,13 +270,13 @@ void receiveEvent(int bytesLength) { // bytes: 00[device][cmd][data...
             if(cmd == 'T') { // Tune
                 channel = Wire1.read()+900;
                 radio.setChannel(channel);
-            
+
             } else if(cmd == 'U') { // Seek Up
                 channel = radio.seekUp();
-            
+
             } else if(cmd == 'D') { // Seek Down
                 channel = radio.seekDown();
-            
+
             } else if(cmd == 'V') { // Volume
                 int vol = Wire1.read();
                 if (vol >= 0 && vol <= 15) { // Volume: 0 - 15
@@ -298,7 +298,7 @@ void receiveEvent(int bytesLength) { // bytes: 00[device][cmd][data...
         }
     }
 
-    
+
     while(1 < Wire1.available()) // loop through all but the last
     {
         char c = Wire1.read(); // receive byte as a character
