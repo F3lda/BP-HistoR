@@ -1360,100 +1360,105 @@ void setup() {
         // here begin chunked transfer
         webServer.send(200, "text/html", "");
 
-        webServer.sendContent(F("<!DOCTYPE html><html><head><title>HistoR - WIFI SCANNER</title></head><body>"));
+        webServer_bufferContentAddChar("<!DOCTYPE html><html><head><title>HistoR - WIFI SCANNER</title></head><body>");
         
         Serial.println("Scan start");
-        webServer.sendContent(F("Scan start\n"));
+        webServer_bufferContentAddChar("Scan start\n");
     
         // WiFi.scanNetworks will return the number of networks found.
         int n = WiFi.scanNetworks();
         Serial.println("Scan done");
-        webServer.sendContent(F("Scan done<br>\n"));
+        webServer_bufferContentAddChar("Scan done<br>\n");
         if (n == 0) {
             Serial.println("no networks found");
-            webServer.sendContent(F("no networks found\n"));
+            webServer_bufferContentAddChar("no networks found\n");
         } else {
             Serial.print(n);
-            webServer.sendContent(String(n));
+            webServer_bufferContentAddInt(n);
             Serial.println(" networks found");
-            webServer.sendContent(F(" networks found\n"));
+            webServer_bufferContentAddChar(" networks found\n");
             Serial.println("Nr | SSID                             | RSSI | CH | Encryption");
-            webServer.sendContent(F("<table><tr><th>Nr</th><th>SSID</th><th>RSSI</th><th>CH</th><th>Encryption</th></tr>\n<tr><td>"));
+            webServer_bufferContentAddChar("<table><tr><th>Nr</th><th>SSID</th><th>RSSI</th><th>CH</th><th>Encryption</th></tr>\n");
             for (int i = 0; i < n; ++i) {
+                webServer_bufferContentAddChar("<tr><td>");
                 // Print SSID and RSSI for each network found
                 Serial.printf("%2d",i + 1);
-                webServer.sendContent(String(i + 1));
+                webServer_bufferContentAddInt(i + 1);
                 Serial.print(" | ");
-                webServer.sendContent(F("</td><td>"));
+                webServer_bufferContentAddChar("</td><td>");
                 Serial.printf("%-32.32s", WiFi.SSID(i).c_str());
-                webServer.sendContent(WiFi.SSID(i).c_str());
+                webServer_bufferContentAddChar(WiFi.SSID(i).c_str());
                 Serial.print(" | ");
-                webServer.sendContent(F("</td><td>"));
+                webServer_bufferContentAddChar("</td><td>");
                 Serial.printf("%4d", WiFi.RSSI(i));
-                webServer.sendContent(String(WiFi.RSSI(i)));
+                webServer_bufferContentAddInt(WiFi.RSSI(i));
                 Serial.print(" | ");
-                webServer.sendContent(F("</td><td>"));
+                webServer_bufferContentAddChar("</td><td>");
                 Serial.printf("%2d", WiFi.channel(i));
-                webServer.sendContent(String(WiFi.channel(i)));
+                webServer_bufferContentAddInt(WiFi.channel(i));
                 Serial.print(" | ");
-                webServer.sendContent(F("</td><td>"));
+                webServer_bufferContentAddChar("</td><td>");
                 switch (WiFi.encryptionType(i))
                 {
                 case WIFI_AUTH_OPEN:
                     Serial.print("open");
-                    webServer.sendContent(F("open"));
+                    webServer_bufferContentAddChar("open");
                     break;
                 case WIFI_AUTH_WEP:
                     Serial.print("WEP");
-                    webServer.sendContent(F("WEP"));
+                    webServer_bufferContentAddChar("WEP");
                     break;
                 case WIFI_AUTH_WPA_PSK:
                     Serial.print("WPA");
-                    webServer.sendContent(F("WPA"));
+                    webServer_bufferContentAddChar("WPA");
                     break;
                 case WIFI_AUTH_WPA2_PSK:
                     Serial.print("WPA2");
-                    webServer.sendContent(F("WPA2"));
+                    webServer_bufferContentAddChar("WPA2");
                     break;
                 case WIFI_AUTH_WPA_WPA2_PSK:
                     Serial.print("WPA+WPA2");
-                    webServer.sendContent(F("WPA+WPA2"));
+                    webServer_bufferContentAddChar("WPA+WPA2");
                     break;
                 case WIFI_AUTH_WPA2_ENTERPRISE:
                     Serial.print("WPA2-EAP");
-                    webServer.sendContent(F("WPA2-EAP"));
+                    webServer_bufferContentAddChar("WPA2-EAP");
                     break;
                 case WIFI_AUTH_WPA3_PSK:
                     Serial.print("WPA3");
-                    webServer.sendContent(F("WPA3"));
+                    webServer_bufferContentAddChar("WPA3");
                     break;
                 case WIFI_AUTH_WPA2_WPA3_PSK:
                     Serial.print("WPA2+WPA3");
-                    webServer.sendContent(F("WPA2+WPA3"));
+                    webServer_bufferContentAddChar("WPA2+WPA3");
                     break;
                 case WIFI_AUTH_WAPI_PSK:
                     Serial.print("WAPI");
-                    webServer.sendContent(F("WAPI"));
+                    webServer_bufferContentAddChar("WAPI");
                     break;
                 default:
                     Serial.print("unknown");
-                    webServer.sendContent(F("unknown"));
+                    webServer_bufferContentAddChar("unknown");
                 }
                 Serial.println();
-                webServer.sendContent(F("</td></tr>\n"));
+                webServer_bufferContentAddChar("</td></tr>\n");
                 delay(10);
             }
         }
         Serial.println("");
-        webServer.sendContent(F("</table>\n"));
+        webServer_bufferContentAddChar("</table>\n");
     
         // Delete the scan result to free memory for code below.
         WiFi.scanDelete();
 
   
-        webServer.sendContent(F("<br><br><a href='javascript:window.close();'>close</a>\n"));
+        webServer_bufferContentAddChar("<br><br><a href='javascript:window.close();'>close</a>\n");
         
-        webServer.sendContent(F("</body></html>\n"));
+        webServer_bufferContentAddChar("</body></html>\n");
+
+        webServer_bufferContentFlush();
+        
+
         
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
