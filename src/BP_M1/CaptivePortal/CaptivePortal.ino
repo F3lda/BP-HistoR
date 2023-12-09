@@ -746,6 +746,13 @@ void setup() {
                 webServer.send(200, "text/plain", "RESTART OK!");
                 webServer.client().stop();
 
+                Wire.beginTransmission(BP_ESP_SLAVE_ID);
+                Wire.write(0);
+                Wire.write(0);
+                Wire.write("ER");
+                Wire.endTransmission();
+                delay(10);
+
                 delay(1500);
                 ESP.restart();
             } else if (cmd == "MPSELECT") {
@@ -1235,7 +1242,7 @@ void loop() {
         Wire.endTransmission();    // stop transmitting
 
         // Receive
-        Wire.requestFrom(BP_ESP_SLAVE_ID, 14);    // request 8 bytes from peripheral device #8
+        Wire.requestFrom(BP_ESP_SLAVE_ID, 19);    // request 9 bytes from peripheral device #8
         Serial.print((char)Wire.read());
         Serial.print((char)Wire.read());
         Serial.print((char)Wire.read());
@@ -1254,6 +1261,11 @@ void loop() {
         Serial.print((int)Wire.read());
         Serial.print(",");
         Serial.print((int)Wire.read());
+        Serial.print((char)Wire.read());
+        Serial.print((char)Wire.read());
+        Serial.print((char)Wire.read());
+        Serial.print((char)Wire.read());
+        Serial.print((int)Wire.read(), HEX); // FM transmitter status
         Serial.print((char)Wire.read());
         Serial.println();
 

@@ -103,9 +103,16 @@ void setup() {
 
 
 
+    //FM transmitter
+    beginFMtrans();
 
 
 
+    Serial.println("ESP slave ON!");
+}
+
+void beginFMtrans()
+{
     /* FM transmitter */
     if (!FMtrans.begin()) {  // begin with address 0x63 (CS high default)
         Serial.println("Couldn't find radio?");
@@ -145,13 +152,6 @@ void setup() {
     FMtrans.setRDSstation((char *)"HistoR"); // max 8 chars
     FMtrans.setRDSbuffer((char *)"HistoRadio FM Live!");
     Serial.println("RDS on!");
-
-
-
-
-
-
-    Serial.println("ESP slave ON!");
 }
 
 
@@ -174,6 +174,12 @@ void loop() {
     Serial.print("\tCurr InLevel (input audio volume range: from 0 to about -10 (dB)):");
     Serial.println(FMtrans.currInLevel);
 
+
+    // Restart FM transmitter
+    if (FMtrans.currASQ == 0) {
+        Serial.println("Restarting FM transmitter...");
+        beginFMtrans();
+    }
 
 
     delay(3000);
@@ -204,7 +210,9 @@ void requestEvent() {
     Wire1.write((byte)volume);
     Wire1.write((byte)(channel-900));
     Wire1.write((byte)(rdsBuffer[0] != 0));
-    Wire1.write(";");//14
+    Wire1.write(";tr:");//17
+    Wire1.write((byte)(FMtrans.currASQ)); // FM transmitter status
+    Wire1.write(";");//19
 }
 
 
@@ -295,6 +303,12 @@ void receiveEvent(int bytesLength) { // bytes: 00[device][cmd][data...
                 );
             }
             RadioDisplayInfo();
+        } else if (device == 'E') { // ESP32
+            if(cmd == 'R') { // Restart
+                Serial.println("RESTART!!!");
+                delay(1500);
+                ESP.restart();
+            }
         }
     }
 
