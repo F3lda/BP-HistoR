@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xml:space="preserve"
+   x="0px"
+   id="Layer_2"
+   width="33.400002mm"
+   y="0px"
+   viewBox="0 0 94.677176 57.826772"
+   gorn="0"
+   enable-background="new 0 0 41.832 59.652"
+   height="20.4mm"
+   version="1.1"
+   sodipodi:docname="svg.pcb.XY-USB4.svg"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"><sodipodi:namedview
+   id="namedview4"
+   pagecolor="#ffffff"
+   bordercolor="#000000"
+   borderopacity="0.25"
+   inkscape:showpageshadow="2"
+   inkscape:pageopacity="0.0"
+   inkscape:pagecheckerboard="0"
+   inkscape:deskcolor="#d1d1d1"
+   inkscape:document-units="mm"
+   inkscape:zoom="5.6568543"
+   inkscape:cx="41.7193"
+   inkscape:cy="53.828503"
+   inkscape:window-width="1920"
+   inkscape:window-height="1017"
+   inkscape:window-x="-8"
+   inkscape:window-y="-8"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="copper1" />
+    <metadata
+   id="metadata27">
+        <rdf:RDF>
+            <cc:Work
+   rdf:about="">
+                <dc:format>image/svg+xml</dc:format>
+                <dc:type
+   rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+                
+            </cc:Work>
+        </rdf:RDF>
+    </metadata>
+    <defs
+   id="defs25" />
+    <desc
+   id="desc2">
+        <referenceFile>pH pcb.svg</referenceFile>
+    </desc>
+    
+    <g
+   id="copper1"
+   style="display:inline"
+   gorn="0.4.0.0.0"
+   transform="translate(0.71226268,19.532991)"
+   inkscape:label="copper">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                <circle
+   r="2"
+   id="connector7pin"
+   style="display:inline"
+   cx="88.377007"
+   cy="24.305412"
+   stroke-width="1.25"
+   stroke="#fdbf16"
+   fill="none"
+   gorn="0.4.0.0.0.10"
+   transform="translate(-0.71226268,-19.532991)" /><circle
+   r="2"
+   id="connector6pin"
+   style="display:inline"
+   cx="82.377007"
+   cy="18.305412"
+   stroke-width="1.25"
+   stroke="#fdbf16"
+   fill="none"
+   gorn="0.4.0.0.0.9"
+   transform="translate(-0.71226268,-19.532991)" /><circle
+   r="2"
+   id="connector5pin"
+   style="display:inline"
+   cx="76.377007"
+   cy="12.305411"
+   stroke-width="1.25"
+   stroke="#fdbf16"
+   fill="none"
+   gorn="0.4.0.0.0.8"
+   transform="translate(-0.71226268,-19.532991)" /><circle
+   r="2"
+   id="connector4pin"
+   style="display:inline"
+   cx="70.365005"
+   cy="6.3100395"
+   stroke-width="1.25"
+   stroke="#fdbf16"
+   fill="none"
+   gorn="0.4.0.0.0.7"
+   transform="translate(-0.71226268,-19.532991)" /><circle
+   r="2"
+   id="connector3pin"
+   style="display:inline"
+   cx="6.3100395"
+   cy="24.305412"
+   stroke-width="1.25"
+   stroke="#fdbf16"
+   fill="none"
+   gorn="0.4.0.0.0.10"
+   transform="translate(-0.71226268,-19.532991)" /><circle
+   r="2"
+   id="connector2pin"
+   style="display:inline"
+   cx="12.31004"
+   cy="18.305412"
+   stroke-width="1.25"
+   stroke="#fdbf16"
+   fill="none"
+   gorn="0.4.0.0.0.9"
+   transform="translate(-0.71226268,-19.532991)" /><circle
+   r="2"
+   id="connector1pin"
+   style="display:inline"
+   cx="18.310041"
+   cy="12.305411"
+   stroke-width="1.25"
+   stroke="#fdbf16"
+   fill="none"
+   gorn="0.4.0.0.0.8"
+   transform="translate(-0.71226268,-19.532991)" /><circle
+   r="2"
+   id="connector0pin"
+   style="display:inline"
+   cx="24.305885"
+   cy="6.3100395"
+   stroke-width="1.25"
+   stroke="#fdbf16"
+   fill="none"
+   gorn="0.4.0.0.0.7"
+   transform="translate(-0.71226268,-19.532991)" /></g><g
+   id="silkscreen"
+   style="display:inline;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.19202;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+   gorn="0.3.0.0"
+   transform="matrix(2.255259,0,0,0.9662923,0.1360549,0.16337632)">
+                
+            <rect
+   style="display:inline;fill:none;stroke:#000000;stroke-width:0.56693;stroke-linejoin:round"
+   id="rect4"
+   width="22.110237"
+   height="27.779528"
+   x="70.617134"
+   y="9.2374182"
+   transform="matrix(0.44340805,0,0,1.0348835,0.25549517,20.045296)" /><rect
+   style="display:inline;fill:none;stroke:#000000;stroke-width:0.56693;stroke-linejoin:round"
+   id="rect5"
+   width="22.110237"
+   height="27.779528"
+   x="0.61355954"
+   y="9.2374182"
+   transform="matrix(0.44340805,0,0,1.0348835,0.25549517,20.045296)" /><rect
+   style="display:inline;fill:none;stroke:#000000;stroke-width:0.56693;stroke-linejoin:round"
+   id="rect6"
+   width="36.283466"
+   height="30.614174"
+   x="28.382542"
+   y="6.5857677"
+   transform="matrix(0.44340805,0,0,1.0348835,0.25549517,20.045296)" /><path
+   d="M 0.30196351,6.2336535 V 57.524811 H 94.375206 V 6.2343753 l -5.945514,-5.93241179 -82.1758032,0 z"
+   style="display:inline;fill:none;stroke:#000000;stroke-width:0.603927;stroke-linejoin:round"
+   id="path1"
+   sodipodi:nodetypes="ccccccc"
+   transform="matrix(0.44340806,0,0,1.0348836,-0.06032784,-0.16907547)" /></g>
+</svg>

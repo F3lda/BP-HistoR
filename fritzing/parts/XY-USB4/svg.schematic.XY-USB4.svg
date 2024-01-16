@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xml:space="preserve"
+   x="0px"
+   id="svg1346"
+   width="32mm"
+   y="0px"
+   viewBox="0 0 90.708667 68.031831"
+   gorn="0"
+   enable-background="new 0 0 41.832 73.125"
+   height="24mm"
+   version="1.1"
+   sodipodi:docname="svg.schematic.XY-USB4.svg"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"><sodipodi:namedview
+   id="namedview45"
+   pagecolor="#ffffff"
+   bordercolor="#000000"
+   borderopacity="0.25"
+   inkscape:showpageshadow="2"
+   inkscape:pageopacity="0.0"
+   inkscape:pagecheckerboard="0"
+   inkscape:deskcolor="#d1d1d1"
+   inkscape:document-units="in"
+   inkscape:zoom="5.9542311"
+   inkscape:cx="22.253083"
+   inkscape:cy="-5.2903556"
+   inkscape:window-width="1920"
+   inkscape:window-height="1017"
+   inkscape:window-x="-8"
+   inkscape:window-y="-8"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="svg1346" />
+    <metadata
+   id="metadata1352">
+        <rdf:RDF>
+            <cc:Work
+   rdf:about="">
+                <dc:format>image/svg+xml</dc:format>
+                <dc:type
+   rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+                
+            </cc:Work>
+        </rdf:RDF>
+    </metadata>
+    <defs
+   id="defs1350" />
+    <desc
+   id="desc1218">
+        <referenceFile>pH schematic.svg</referenceFile>
+    </desc>
+    <path
+   id="path1226-9-8-7"
+   gorn="0.6"
+   d="m 59.550791,10.008809 c -0.276,0 -0.5,-0.2239999 -0.5,-0.4999999 V 2.3888088 c 0,-0.276 0.224,-0.5 0.5,-0.5 0.276,0 0.5,0.224 0.5,0.5 v 7.1200003 c 0,0.276 -0.223,0.4999999 -0.5,0.4999999 z" /><path
+   id="path1226-9-8-7-8"
+   gorn="0.7"
+   d="m 66.805232,10.008809 c -0.276,0 -0.5,-0.2239999 -0.5,-0.4999999 V 2.3888088 c 0,-0.276 0.224,-0.5 0.5,-0.5 0.276,0 0.5,0.224 0.5,0.5 v 7.1200003 c 0,0.276 -0.223,0.4999999 -0.5,0.4999999 z" /><path
+   id="path1226-9-8-7-8-3"
+   gorn="0.8"
+   d="m 74.677071,9.8544591 c -0.276,0 -0.5,-0.224 -0.5,-0.5 V 2.2344586 c 0,-0.276 0.224,-0.5 0.5,-0.5 0.276,0 0.5,0.224 0.5,0.5 v 7.1200005 c 0,0.276 -0.223,0.5 -0.5,0.5 z" /><path
+   id="path1220-7"
+   stroke-width="0.98954"
+   gorn="0.10"
+   d="m 16.531377,1.8097623 c 0.270256,0 0.489595,0.224 0.489595,0.5 v 7.1200003 c 0,0.276 -0.219339,0.499999 -0.489595,0.499999 -0.270256,0 -0.489594,-0.223999 -0.489594,-0.499999 V 2.3097623 c 0,-0.276 0.218359,-0.5 0.489594,-0.5 z" /><path
+   id="path1220-7-7"
+   stroke-width="1.01962"
+   gorn="0.11"
+   d="m 9.7399846,1.4628873 c 0.2702564,0 0.4895954,0.237827 0.4895954,0.530864 v 7.5594973 c 0,0.293036 -0.219339,0.5308634 -0.4895954,0.5308634 -0.270256,0 -0.489594,-0.2378274 -0.489594,-0.5308634 V 1.9937513 c 0,-0.293037 0.218359,-0.530864 0.489594,-0.530864 z" /><path
+   id="path45"
+   gorn="0.8"
+   d="m 81.535323,9.8967553 c -0.276,0 -0.5,-0.224 -0.5,-0.5 V 2.2767548 c 0,-0.276 0.224,-0.5 0.5,-0.5 0.276,0 0.5,0.224 0.5,0.5 v 7.1200005 c 0,0.276 -0.223,0.5 -0.5,0.5 z" /><path
+   id="path1223"
+   gorn="0.3.0.0.0.0.0.0.0.1.0"
+   d="m 29.608879,10.085364 c -0.270256,0 -0.489594,-0.2239999 -0.489594,-0.4999999 v -7.12 c 0,-0.276 0.219338,-0.5 0.489594,-0.5 0.270256,0 0.489595,0.224 0.489595,0.5 v 7.12 c 0,0.276 -0.219339,0.4999999 -0.489595,0.4999999 z"
+   style="stroke-width:0.98954" /><path
+   id="path1220"
+   gorn="0.3.0.0.0.0.0.0.0.0.0"
+   d="m 22.247336,10.085364 c -0.270256,0 -0.489594,-0.2239999 -0.489594,-0.4999999 v -7.12 c 0,-0.276 0.219338,-0.5 0.489594,-0.5 0.270256,0 0.489595,0.224 0.489595,0.5 v 7.12 c 0,0.276 -0.21836,0.4999999 -0.489595,0.4999999 z"
+   style="stroke-width:0.98954" /><rect
+   x="1.0074446"
+   ry="0"
+   id="connector3pin"
+   width="0.95666766"
+   y="-10.149737"
+   fill="none"
+   gorn="0.3.0.0.0.0.0.0.0.20"
+   height="0.977"
+   style="stroke-width:0.98954"
+   transform="rotate(90)" /><rect
+   x="1.3314288"
+   id="connector2pin"
+   width="0.95666766"
+   y="-17.019878"
+   fill="none"
+   gorn="0.3.0.0.0.0.0.0.0.16"
+   height="0.977"
+   style="stroke-width:0.98954"
+   transform="rotate(90)" /><rect
+   x="21.769491"
+   id="connector1pin"
+   width="0.95666766"
+   y="0.47021392"
+   fill="none"
+   gorn="0.3.0.0.0.0.0.0.0.5"
+   height="0.977"
+   style="stroke-width:0.98954" /><rect
+   x="29.25889"
+   id="connector0pin"
+   width="0.95666766"
+   y="0.47021392"
+   fill="none"
+   gorn="0.3.0.0.0.0.0.0.0.4"
+   height="0.977"
+   style="stroke-width:0.98954" /><rect
+   x="59.216499"
+   id="connector4pin"
+   width="0.95666766"
+   y="0.47021392"
+   fill="none"
+   gorn="0.3.0.0.0.0.0.0.0.12"
+   height="0.977"
+   style="stroke-width:0.98954" /><rect
+   x="66.705894"
+   id="connector5pin"
+   width="0.95666766"
+   y="0.47021392"
+   fill="none"
+   gorn="0.3.0.0.0.0.0.0.0.13"
+   height="0.977"
+   style="stroke-width:0.98954" /><rect
+   x="74.195305"
+   id="connector6pin"
+   width="0.95666766"
+   y="0.47021392"
+   fill="none"
+   gorn="0.3.0.0.0.0.0.0.0.14"
+   height="0.977"
+   style="stroke-width:0.98954" /><rect
+   x="81.018562"
+   id="connector7pin"
+   width="0.95666766"
+   y="0.5603683"
+   fill="none"
+   gorn="0.3.0.0.0.0.0.0.0.15"
+   height="0.977"
+   style="stroke-width:0.98954" />
+    <rect
+   x="6.6330862"
+   id="rect1245"
+   width="77.131645"
+   y="6.5342989"
+   stroke-width="1.45775"
+   stroke="#000000"
+   fill="#ffffff"
+   gorn="0.4.0.0.0.0.0.0.0.1"
+   height="56.658897"
+   stroke-miterlimit="10" />
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+<text
+   x="77.937439"
+   id="text2"
+   font-size="3.2px"
+   y="19.632046"
+   stroke-width="0.75"
+   gorn="0.27.0"
+   style="font-style:normal;font-weight:normal;line-height:1.25;font-family:'Droid Sans';white-space:pre;inline-size:0"
+   inkscape:label="tspan3"
+   transform="matrix(0,1.000005,-1.000005,0,85.460565,-68.335639)">D+</text><text
+   x="77.937439"
+   id="text3"
+   font-size="3.2px"
+   y="19.632046"
+   stroke-width="0.75"
+   gorn="0.27.0"
+   style="font-style:normal;font-weight:normal;line-height:1.25;font-family:'Droid Sans';white-space:pre;inline-size:0"
+   inkscape:label="tspan2"
+   transform="matrix(0,1.000005,-1.000005,0,92.674662,-68.268452)">D-</text><text
+   x="77.937439"
+   id="tspan738-5-6-6-1-8-6-7"
+   font-size="3.2px"
+   y="19.632046"
+   stroke-width="0.75"
+   gorn="0.27.0"
+   style="font-style:normal;font-weight:normal;line-height:1.25;font-family:'Droid Sans';white-space:pre;inline-size:0"
+   inkscape:label="tspan1"
+   transform="matrix(0,1.000005,-1.000005,0,99.860632,-68.140324)">VCC</text><text
+   x="77.937439"
+   id="text4"
+   font-size="3.2px"
+   y="19.632046"
+   stroke-width="0.75"
+   gorn="0.27.0"
+   style="font-style:normal;font-weight:normal;line-height:1.25;font-family:'Droid Sans';white-space:pre;inline-size:0"
+   inkscape:label="tspan3"
+   transform="matrix(0,1.000005,-1.000005,0,78.229279,-68.451264)">GND</text><text
+   x="77.937439"
+   id="text8"
+   font-size="3.2px"
+   y="19.632046"
+   stroke-width="0.75"
+   gorn="0.27.0"
+   style="font-style:normal;font-weight:normal;line-height:1.25;font-family:'Droid Sans';white-space:pre;inline-size:0"
+   inkscape:label="tspan3"
+   transform="matrix(0,1.000005,-1.000005,0,49.429139,-68.451264)">GND</text><text
+   x="77.937439"
+   id="text9"
+   font-size="3.2px"
+   y="19.632046"
+   stroke-width="0.75"
+   gorn="0.27.0"
+   style="font-style:normal;font-weight:normal;line-height:1.25;font-family:'Droid Sans';white-space:pre;inline-size:0"
+   inkscape:label="tspan3"
+   transform="matrix(0,1.000005,-1.000005,0,42.257519,-68.451263)">D+</text><text
+   x="77.937439"
+   id="text10"
+   font-size="3.2px"
+   y="19.632046"
+   stroke-width="0.75"
+   gorn="0.27.0"
+   style="font-style:normal;font-weight:normal;line-height:1.25;font-family:'Droid Sans';white-space:pre;inline-size:0"
+   inkscape:label="tspan3"
+   transform="matrix(0,1.000005,-1.000005,0,35.026234,-68.451263)">D-</text><text
+   x="77.937439"
+   id="text11"
+   font-size="3.2px"
+   y="19.632046"
+   stroke-width="0.75"
+   gorn="0.27.0"
+   style="font-style:normal;font-weight:normal;line-height:1.25;font-family:'Droid Sans';white-space:pre;inline-size:0"
+   inkscape:label="tspan3"
+   transform="matrix(0,1.000005,-1.000005,0,27.826198,-68.140324)">VCC</text></svg>
