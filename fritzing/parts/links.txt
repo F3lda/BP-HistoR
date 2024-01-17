@@ -5,3 +5,4 @@ https://github.com/adafruit/Fritzing-Library/blob/master/parts/Adafruit%20Si4713
 https://github.com/adafruit/Fritzing-Library/blob/master/parts/Adafruit%20Si5351A%20Clock%20Generator.fzpz
 https://forum.fritzing.org/t/step-up-module-mt3608-adjustable-step-up-boost-dc-2a-2v-24v-to-5v-28v/21687/4
 https://forum.fritzing.org/uploads/short-url/mPA0Y1CxdUi9kcJkSqXvBOc5KKw.fzpz
+https://forum.fritzing.org/t/creating-parts-with-movable-schematic-elements/2121/36
