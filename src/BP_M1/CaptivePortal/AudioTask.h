@@ -6,9 +6,9 @@
 
 
 // Digital I/O used for Audio output
-#define I2S_DOUT      27
-#define I2S_BCLK      26
-#define I2S_LRC       25
+#define I2S_DOUT      27 // DIN (DATA)
+#define I2S_BCLK      26 // BCK (BIT CLOCK - SCK)
+#define I2S_LRC       25 // LCK (LEFT-RIGHT CLOCK - WORD CLOCK)
 
 
 void audioInit();

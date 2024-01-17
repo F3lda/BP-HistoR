@@ -75,7 +75,7 @@ void setup() {
     while(!Serial);
 
     // I2C slave setup
-    Wire1.setPins(16, 17);
+    Wire1.setPins(16, 17); // sda, scl
     Wire1.begin(BP_ESP_SLAVE_ID);                // join i2c bus with address #8
     Wire1.onRequest(requestEvent); // register event
     Wire1.onReceive(receiveEvent); // register event
@@ -86,9 +86,9 @@ void setup() {
     a2dp_sink.set_on_audio_state_changed(audio_state_changed);
     a2dp_sink.set_on_volumechange(audio_volume_changed);
     i2s_pin_config_t my_pin_config = {
-      .bck_io_num = 26,
-      .ws_io_num = 25,
-      .data_out_num = 27,
+      .bck_io_num = 26, // BCK - SCK (CLOCK)
+      .ws_io_num = 25, // WS - LCK - LRC (LEFT-RIGHT CLOCK)
+      .data_out_num = 27, // DIN (DATA)
       .data_in_num = I2S_PIN_NO_CHANGE
     };
     a2dp_sink.set_pin_config(my_pin_config);

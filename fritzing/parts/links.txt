@@ -2,3 +2,6 @@ FRITZING
 https://github.com/Atsumitsu/fritzing-parts/tree/master
 https://forum.fritzing.org/t/16x2-i2c-lcd-part/2041/5
 https://github.com/adafruit/Fritzing-Library/blob/master/parts/Adafruit%20Si4713%20Stereo%20FM%20Transmitter.fzpz
+https://github.com/adafruit/Fritzing-Library/blob/master/parts/Adafruit%20Si5351A%20Clock%20Generator.fzpz
+https://forum.fritzing.org/t/step-up-module-mt3608-adjustable-step-up-boost-dc-2a-2v-24v-to-5v-28v/21687/4
+https://forum.fritzing.org/uploads/short-url/mPA0Y1CxdUi9kcJkSqXvBOc5KKw.fzpz
