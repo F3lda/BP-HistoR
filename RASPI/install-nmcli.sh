@@ -13,6 +13,8 @@ nmcli device wifi connect "ACMOTO" password "test" ifname wlan0
 nmcli --ask device wifi connect "ACMOTO" password "test" ifname wlan0
 
 sudo nmcli device wifi hotspot ssid "RaspiNet" password "12345678" ifname wlan0
+#https://unix.stackexchange.com/questions/717200/setting-up-a-fixed-ip-wifi-hotspot-with-no-internet-with-dhcp-and-dns-using-dn
+sudo nmcli connection modify Hotspot 802-11-wireless.mode ap ipv4.method manual ipv4.addresses 192.168.11.1/24 ipv4.gateway 192.168.11.1
 
 nmcli dev wifi show-password
 
