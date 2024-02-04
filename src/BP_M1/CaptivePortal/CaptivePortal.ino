@@ -22,8 +22,8 @@
 
 // SD card - Digital I/O used
 #define SD_CS          5
-#define SPI_MOSI      23
-#define SPI_MISO      19
+#define SPI_MOSI      19
+#define SPI_MISO      23
 #define SPI_SCK       18
 
 
@@ -53,10 +53,10 @@ WebServer         webServer(80);            // HTTP server
 const byte        DNS_PORT = 53;            // Capture DNS requests on port 53
 DNSServer         dnsServer;                // Create the DNS object
 
-char WIFIssid[64] = "DodikovyInternety";
-char WIFIpassword[64] = "dodikovachyse84";
+char WIFIssid[64] = "ACMOTO";
+char WIFIpassword[64] = "vnuci321";
 
-char APssid[64] = "Stodola"; // default = AppName
+char APssid[64] = "HistoR"; // default = AppName
 char APpassword[64] = "12345678";
 
 bool APactive = true;
@@ -1183,6 +1183,7 @@ void loop() {
                 Serial.println(APpassword);
                 WiFi.softAP(APssid, APpassword);
                 APactive = true;
+                preferences.putBool("APACTIVE", true);
 
                 lcd.setCursor(0, 0);
                 lcd.print("AP: ");
@@ -1201,6 +1202,8 @@ void loop() {
                 Serial.print("IP address: ");
                 Serial.println(WiFi.localIP());
                 Serial.println("--------------------");
+                APactive = false;
+                preferences.putBool("APACTIVE", false);
 
                 lcd.setCursor(0, 0);
                 lcd.print("IP:");
@@ -1258,7 +1261,7 @@ void loop() {
         Serial.print((char)Wire.read());
         Serial.print((int)Wire.read());
         Serial.print(",");
-        Serial.print((int)Wire.read());
+        Serial.print((int)(((int)Wire.read())+900));
         Serial.print(",");
         Serial.print((int)Wire.read());
         Serial.print((char)Wire.read());

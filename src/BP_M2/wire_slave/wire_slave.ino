@@ -65,7 +65,7 @@ void RadioDisplayInfo()
 #define RESETPIN 5
 #define FMSTATION 9240      // 10230 == 102.30 MHz
 Adafruit_Si4713 FMtrans = Adafruit_Si4713(RESETPIN);
-
+int resetCount = 0;
 
 
 
@@ -115,7 +115,7 @@ void beginFMtrans()
 {
     /* FM transmitter */
     if (!FMtrans.begin()) {  // begin with address 0x63 (CS high default)
-        Serial.println("Couldn't find radio?");
+        Serial.println("Couldn't find FM transmitter?");
     }
     delay(2000);  // maybe needed for initial power???
 
@@ -176,9 +176,17 @@ void loop() {
 
 
     // Restart FM transmitter
-    if (FMtrans.currASQ == 0) {
-        Serial.println("Restarting FM transmitter...");
-        beginFMtrans();
+    if (FMtrans.currASQ == 0 || FMtrans.currASQ == 255) {
+        if (resetCount < 3) {
+            resetCount++;
+            Serial.println("Restarting FM transmitter...");
+            beginFMtrans();
+        } else if(resetCount == 3) {
+            resetCount++;
+            Serial.println("FM transmitter ERROR!");
+        }
+    } else {
+        resetCount = 0;
     }
 
 
