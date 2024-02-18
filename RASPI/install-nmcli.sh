@@ -9,6 +9,7 @@ nmcli connection
 
 nmcli device wifi list ifname wlan0
 
+# https://unix.stackexchange.com/questions/420640/unable-to-connect-to-any-wifi-with-networkmanager-due-to-error-secrets-were-req
 nmcli device wifi connect "ACMOTO" password "test" ifname wlan0
 nmcli --ask device wifi connect "ACMOTO" password "test" ifname wlan0
 
