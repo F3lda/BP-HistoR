@@ -2,6 +2,8 @@
 
 # Install Access Point on Raspberry Pi with Captive Portal using Flask
 # Tries connect to WIFI else sets up ACCESS POINT
+# To use Raspberry Pi as a BRIDGE, add USB WIFI adapter: https://www.raspberrypi.com/tutorials/host-a-hotel-wifi-hotspot/
+
 
 #   !!! EDIT THESE LINES !!!
 ###############################
@@ -87,7 +89,6 @@ sudo apt install iwd -y
 ### SET UP DNSMASQ
 # https://pimylifeup.com/raspberry-pi-dns-server/
 # https://www.tecmint.com/setup-a-dns-dhcp-server-using-dnsmasq-on-centos-rhel/
-# https://pimylifeup.com/raspberry-pi-dns-server/
 # https://manpages.ubuntu.com/manpages/noble/en/man8/dnsmasq.8.html
 # dnsmasq -> dhcp + dns (redirect to web server) for AP
 
@@ -119,7 +120,7 @@ domain-needed
 bogus-priv
 
 
-
+#https://unix.stackexchange.com/questions/687616/why-doesnt-work-in-dnsmasq
 no-resolv
 no-poll
 no-hosts
@@ -284,6 +285,8 @@ while true; do
 done
 
 
+## TODO: get AP and WIFI data from file
+
 
 # set up hotspot
 #https://www.raspberrypi.com/tutorials/host-a-hotel-wifi-hotspot/
@@ -295,11 +298,15 @@ sudo nmcli connection down Hotspot
 
 
 # connect to wifi
-#https://unix.stackexchange.com/questions/420640/unable-to-connect-to-any-wifi-with-networkmanager-due-to-error-secrets-were-req
+sudo rm -f /etc/dnsmasq.conf # empty dns config
+sudo systemctl restart dnsmasq
 sleep 10 # wait for wifi to startup
 sudo nmcli device wifi list # wait for wifi to startup
+
+#https://unix.stackexchange.com/questions/420640/unable-to-connect-to-any-wifi-with-networkmanager-due-to-error-secrets-were-req
 sudo nmcli connection delete "${WIFI_SSID}"
 sudo nmcli device wifi connect "${WIFI_SSID}" password "${WIFI_PASSWORD}" ifname wlan0
+
 #nmcli --ask device wifi connect "${WIFI_SSID}" password "${WIFI_PASSWORD}" ifname wlan0
 #nmcli connection show "${WIFI_SSID}"
 #nmcli dev wifi show-password
@@ -308,7 +315,8 @@ sudo nmcli device wifi connect "${WIFI_SSID}" password "${WIFI_PASSWORD}" ifname
 #nmcli device
 #nmcli connection
 #nmcli device wifi list ifname wlan0
-
+#https://unix.stackexchange.com/questions/717200/setting-up-a-fixed-ip-wifi-hotspot-with-no-internet-with-dhcp-and-dns-using-dn
+#https://askubuntu.com/questions/1460268/how-do-i-setup-an-access-point-that-starts-on-every-boot
 
 
 attempts=0
@@ -317,17 +325,19 @@ while true; do
     if [ "\$(hostname -I)" = "" ]
     then
         echo "No network: \$(date)"
-        attempts=\$((attempts+1))
-        if [ \$attempts -eq 7 ]; then # 60 seconds
+        
+        if [ \$attempts -lt 7 ]; then # 60 seconds
+			attempts=\$((attempts+1))
+		elif [ \$attempts -eq 7 ]; then
+			sudo nmcli connection down Hotspot
             #set up dnsmasq
-            sudo mv /etc/dnsmasq.conf /etc/dnsmasq.conf_bu # backup
-            sudo mv /etc/dnsmasq.conf_ap /etc/dnsmasq.conf # AP config
+            sudo \cp -f /etc/dnsmasq.conf_ap /etc/dnsmasq.conf # AP config
             #restart dnsmasq
             sudo systemctl restart dnsmasq
             # set up AP
             sudo nmcli connection up Hotspot
             
-            attempts=0
+            attempts=8
         fi
     else
         echo "I have network: \$(date)"
