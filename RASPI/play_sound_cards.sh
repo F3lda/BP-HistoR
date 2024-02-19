@@ -5,7 +5,8 @@
 #### mplayer -af channels=2:2:0:0:1:0 -ao alsa:device=hw=0.0 song3.mp3
 ### https://github.com/raspberrypi/linux/issues/3962
 ## sudo apt install -y mplayer
-
+## sudo apt install pulseaudio
+#### sudo apt-get install pulseaudio-utils
 
 
 echo ""
