@@ -50,6 +50,9 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     <h1>HistoR</h1><hr>
     <a href="./play">Play</a>
     <a href="./playradio">Play Radio</a>
+    <a href="./playFM">Play FM (89 MHz)</a>
+    <a href="./playAM7000">Play AM (7 MHz)</a>
+    <a href="./playAM1600">Play AM (1.6 MHz)</a>
     <a href="./stop">Stop</a>
     <a href="./volume">Volume</a>
     <a href="./volumeup">Volume Up</a>
@@ -175,6 +178,62 @@ def raspi_playradio():
     return 'Still playing!'
 
 
+@app.route('/playAM7000')
+def raspi_playAM7000():
+    global FMAMtransmittingProcess
+    
+    if FMAMtransmittingProcess != None:
+        if FMAMtransmittingProcess.poll() != None:
+            FMAMtransmittingProcess = None
+    
+    if FMAMtransmittingProcess == None:
+        #play_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
+        #play_command = ["python", "--version"]
+        # !!! for some reason RASPI disconnects from the network when transmitting on 10 MHz -> don't use it
+        play_command = "ffmpeg -i './MUSIC/Modern Talking - Cheri Cheri Lady (T-Beat Rework) 2k23.mp3' -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 7000"
+        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        return 'Started Playing...'
+    return 'Still playing!'
+
+
+
+@app.route('/playAM1600')
+def raspi_playAM1600():
+    global FMAMtransmittingProcess
+    
+    if FMAMtransmittingProcess != None:
+        if FMAMtransmittingProcess.poll() != None:
+            FMAMtransmittingProcess = None
+    
+    if FMAMtransmittingProcess == None:
+        #play_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
+        #play_command = ["python", "--version"]
+        play_command = "ffmpeg -i './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3' -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 1600"
+        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        return 'Started Playing...'
+    return 'Still playing!'
+
+
+
+@app.route('/playFM')
+def raspi_playFM():
+    global FMAMtransmittingProcess
+    
+    if FMAMtransmittingProcess != None:
+        if FMAMtransmittingProcess.poll() != None:
+            FMAMtransmittingProcess = None
+    
+    if FMAMtransmittingProcess == None:
+        #play_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
+        #play_command = ["python", "--version"]
+        play_command = "ffmpeg -i './MUSIC/Bloodhound Gang - The Bad Touch (Hugh Graham Bootleg) [FREE DOWNLOAD].mp3' -f wav - | sudo ./LIBS/rpitx/pifmrds -freq 89.0 -audio -"
+        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        return 'Started Playing...'
+    return 'Still playing!'
+
+
+
+
 @app.route('/volumeup')
 def raspi_volumeup():
     ## https://unix.stackexchange.com/questions/457946/pactl-works-in-userspace-not-as-root-on-i3
@@ -258,6 +317,7 @@ def raspi_stop():
         if FMAMtransmittingProcess.poll() == None:
             FMAMtransmittingProcess.terminate()
             os.system("sudo killall mplayer")
+            os.system("sudo killall ffmpeg")
             return 'Stopped!'
         FMAMtransmittingProcess = None
     return 'Nothing playing!'

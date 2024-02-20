@@ -3,6 +3,8 @@
 #https://github.com/F5OEO/rpitx
 #https://github.com/F3lda/rpitx-FM-AM
 
+#sudo apt install ffmpeg
+
 #make ../pifmrds
 #sudo ../pifmrds -freq 102.0 -audio - < <(while true; do cat ../src/pifmrds/stereo_44100.wav; done)
 #sudo ../pifmrds -raw -freq 102.0 -audio - < <(while true; do cat ../src/pifmrds/stereo_44100.wav; done)
@@ -32,7 +34,7 @@ echo "ffmpeg -stream_loop -1 -i '../MUSIC/Modern Talking - Cheri Cheri Lady (T-B
 echo "sudo ./pifmrds -freq 102.0 -audio - < <(ffmpeg -stream_loop -1 -i '../MUSIC/Modern Talking - Cheri Cheri Lady (T-Beat Rework) 2k23.mp3' -f wav -)"
 echo
 echo
-echo
+echo "!!! for some reason RASPI disconnects from the network when transmitting on 10 MHz -> don't use it"
 echo "AM 10 MHz"
 echo "./testnfm.sh '10e3'"
 echo "(while true; do cat sampleaudio.wav; done) | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./rpitx -i- -m RF -f 10e3"
