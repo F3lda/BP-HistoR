@@ -1,19 +1,14 @@
 #!/bin/bash
 
-# Install Access Point on Raspberry Pi with Captive Portal using Flask
-# Tries connect to WIFI else sets up ACCESS POINT
-# To use Raspberry Pi as a BRIDGE, add USB WIFI adapter: https://www.raspberrypi.com/tutorials/host-a-hotel-wifi-hotspot/
-
-
 #   !!! EDIT THESE LINES !!!
 ###############################
-WIFI_SSID="ACMOTO";
-WIFI_PASSWORD="vnuci321";
+WIFI_SSID="ACMOTO"
+WIFI_PASSWORD="vnuci321"
 
 AP_SSID="HistoRAP"
 AP_PASSWORD="12345678"
 
-DEVICE_NAME="HistoRPi";
+DEVICE_NAME="HistoRPi"
 ###############################
 
 
@@ -86,9 +81,10 @@ sudo apt install dnsmasq -y
 sudo apt install iwd -y
 
 
-### SET UP DNSMASQ
+### SETUP DNSMASQ
 # https://pimylifeup.com/raspberry-pi-dns-server/
 # https://www.tecmint.com/setup-a-dns-dhcp-server-using-dnsmasq-on-centos-rhel/
+# https://pimylifeup.com/raspberry-pi-dns-server/
 # https://manpages.ubuntu.com/manpages/noble/en/man8/dnsmasq.8.html
 # dnsmasq -> dhcp + dns (redirect to web server) for AP
 
@@ -120,7 +116,7 @@ domain-needed
 bogus-priv
 
 
-#https://unix.stackexchange.com/questions/687616/why-doesnt-work-in-dnsmasq
+
 no-resolv
 no-poll
 no-hosts
@@ -159,7 +155,7 @@ sudo systemctl restart dnsmasq
 
 
 
-### SET UP IWD
+### SETUP IWD
 ##Enabling IWD backend for NetworkManager -> AP with password not working with default wpa_supplicant
 #https://forums.raspberrypi.com/viewtopic.php?t=341580
 #https://www.reddit.com/r/kde/comments/soqzo4/unable_to_connect_to_hotspot_made_with/
@@ -179,7 +175,7 @@ sudo systemctl disable --now wpa_supplicant
 
 
 
-### SET UP NETWORK MANAGER
+### SETUP NETWORK MANAGER
 # https://raspberrypi.stackexchange.com/a/142588
 # This command will enable NetworkManager, without needing to jump through GUI:
 sudo raspi-config nonint do_netconf 2
@@ -190,11 +186,11 @@ sudo raspi-config nonint do_netconf 2
 
 
 
-### SET UP ON STARTUP
+### SETUP ON STARTUP
 ## using A Systemd Service
 ## https://github.com/thagrol/Guides/blob/main/boot.pdf
-echo "Editting file /etc/systemd/system/APconnection.service:";
-sudo tee /etc/systemd/system/APconnection.service <<EOF
+echo "Editting file /etc/NetworkManager/conf.d/iwd.conf:";
+sudo tee /etc/systemd/system/APortalWeb.service <<EOF
 [Unit]
 Description=CaptivePortalWebService
 [Service]
@@ -209,7 +205,7 @@ sudo systemctl enable APortalWeb
 sudo systemctl start APortalWeb
 
 
-echo "Editting file /etc/systemd/system/APconnection.service:";
+echo "Editting file /etc/NetworkManager/conf.d/iwd.conf:";
 sudo tee /etc/systemd/system/APconnection.service <<EOF
 [Unit]
 Description=CaptivePortalConnectionService
@@ -226,7 +222,7 @@ sudo systemctl start APconnection
 
 
 
-### SET UP FLASK WEB SERVER
+### SETUP FLASK WEB SERVER
 echo "Editting file /home/histor/web-server/app.py:";
 sudo mkdir -p /home/histor/web-server # The parameter mode specifies the permissions to use.
 sudo tee /home/histor/web-server/app.py <<EOF
@@ -264,18 +260,22 @@ sudo chmod 777 /home/histor/web-server/app.py
 
 
 
-
-### SET UP CONNECTION CHECK SCRIPT
+### SETUP CONNECTION CHECK SCRIPT
 echo "Editting file /home/histor/web-server/connection.sh:";
 sudo mkdir -p /home/histor/web-server # The parameter mode specifies the permissions to use.
 sudo tee /home/histor/web-server/connection.sh <<EOF
 #!/bin/bash
 
+DIR=\$(dirname "\$0")
+FILE="\$DIR/device.conf"
+. \$FILE || true
+
+
 
 # wait for NetworkManager to startup
 while true; do
     # https://www.golinuxcloud.com/nmcli-command-examples-cheatsheet-centos-rhel/
-    if [ "$(nmcli -t -f RUNNING general)" = "running" ]
+    if [ "\$(nmcli -t -f RUNNING general)" = "running" ]
     then
         sleep 10 # wait for wifi to startup
         sudo nmcli device wifi list # wait for wifi to startup
@@ -285,12 +285,10 @@ while true; do
 done
 
 
-## TODO: get AP and WIFI data from file
-
 
 # set up hotspot
 #https://www.raspberrypi.com/tutorials/host-a-hotel-wifi-hotspot/
-sudo nmcli device wifi hotspot ssid "${AP_SSID}" password "${AP_PASSWORD}" ifname wlan0
+sudo nmcli device wifi hotspot ssid "\${AP_SSID}" password "\${AP_PASSWORD}" ifname wlan0
 #https://unix.stackexchange.com/questions/717200/setting-up-a-fixed-ip-wifi-hotspot-with-no-internet-with-dhcp-and-dns-using-dn
 sudo nmcli connection modify Hotspot 802-11-wireless.mode ap ipv4.method manual ipv4.addresses 192.168.11.1/24 ipv4.gateway 192.168.11.1
 sudo nmcli connection down Hotspot
@@ -304,17 +302,18 @@ sleep 10 # wait for wifi to startup
 sudo nmcli device wifi list # wait for wifi to startup
 
 #https://unix.stackexchange.com/questions/420640/unable-to-connect-to-any-wifi-with-networkmanager-due-to-error-secrets-were-req
-sudo nmcli connection delete "${WIFI_SSID}"
-sudo nmcli device wifi connect "${WIFI_SSID}" password "${WIFI_PASSWORD}" ifname wlan0
+sudo nmcli connection delete "\${WIFI_SSID}"
+sudo nmcli device wifi connect "\${WIFI_SSID}" password "\${WIFI_PASSWORD}" ifname wlan0
 
-#nmcli --ask device wifi connect "${WIFI_SSID}" password "${WIFI_PASSWORD}" ifname wlan0
-#nmcli connection show "${WIFI_SSID}"
+#nmcli --ask device wifi connect "\${WIFI_SSID}" password "\${WIFI_PASSWORD}" ifname wlan0
+#nmcli connection show "\${WIFI_SSID}"
 #nmcli dev wifi show-password
 
 #nmcli general
 #nmcli device
 #nmcli connection
 #nmcli device wifi list ifname wlan0
+#nmcli device wifi show-password | grep "SSID:" | cut -d ':' -f 2
 #https://unix.stackexchange.com/questions/717200/setting-up-a-fixed-ip-wifi-hotspot-with-no-internet-with-dhcp-and-dns-using-dn
 #https://askubuntu.com/questions/1460268/how-do-i-setup-an-access-point-that-starts-on-every-boot
 
@@ -327,9 +326,9 @@ while true; do
         echo "No network: \$(date)"
         
         if [ \$attempts -lt 7 ]; then # 60 seconds
-			attempts=\$((attempts+1))
-		elif [ \$attempts -eq 7 ]; then
-			sudo nmcli connection down Hotspot
+            attempts=\$((attempts+1))
+        elif [ \$attempts -eq 7 ]; then
+            sudo nmcli connection down Hotspot
             #set up dnsmasq
             sudo \cp -f /etc/dnsmasq.conf_ap /etc/dnsmasq.conf # AP config
             #restart dnsmasq
@@ -349,6 +348,22 @@ while true; do
 done
 EOF
 sudo chmod 777 /home/histor/web-server/connection.sh
+
+
+
+### SETUP CONNECTION CHECK SCRIPT
+echo "Editting file /home/histor/web-server/device.conf:";
+sudo mkdir -p /home/histor/web-server # The parameter mode specifies the permissions to use.
+sudo tee /home/histor/web-server/device.conf <<EOF
+WIFI_SSID="${WIFI_SSID}"
+WIFI_PASSWORD="${WIFI_PASSWORD}"
+
+AP_SSID="${AP_SSID}"
+AP_PASSWORD="${AP_PASSWORD}"
+
+DEVICE_NAME="${DEVICE_NAME}"
+EOF
+sudo chmod 777 /home/histor/web-server/device.conf
 
 
 

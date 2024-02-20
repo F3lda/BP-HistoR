@@ -8,9 +8,10 @@ from pprint import pprint
 app = Flask(__name__)
 
 wifi_device = "wlan0"
+conf_file = "device.conf"
 
 @app.route('/')
-def index():
+def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2
     result = subprocess.check_output(["nmcli", "--colors", "no", "-m", "multiline", "--get-value", "SSID", "dev", "wifi", "list", "ifname", wifi_device])
     ssids_list = result.decode().split('\n')
     dropdowndisplay = f"""
@@ -43,7 +44,7 @@ def index():
         """
 
 
-
+    
     dropdowndisplay = ""
     dropdowndisplay += """
     <h1>HistoR</h1><hr>
@@ -53,8 +54,19 @@ def index():
     <a href="./volume">Volume</a>
     <a href="./volumeup">Volume Up</a>
     <a href="./volumedown">Volume Down</a>
+    <a href="./disconnect">Disconnect WiFi + Reboot</a>
+    <a href="./reboot">Reboot</a>
+    <a href="./shutdown">Shutdown</a>
     
     
+    <h3>Wifi Control</h3>"""
+    result = subprocess.check_output("nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2", shell=True)
+    dropdowndisplay += "Connected to WiFi: "+str(result.decode().strip())
+    dropdowndisplay += """<br><form action="/submit" method="post">
+        <label for="ssid">WiFi network: <input type="text" name="ssid"/></label>
+        <label for="password">Password: <input type="text" name="password"/></label>
+        <input type="submit" value="Connect">
+    </form>
     <script>
     // Get the parent DIV, add click listener...
             document.body.addEventListener("click", function(e) {
@@ -82,20 +94,47 @@ def submit():
         print(*list(request.form.keys()), sep = ", ")
         ssid = request.form['ssid']
         password = request.form['password']
-        connection_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
-        if length(password) > 0:
-          connection_command.append("password")
-          connection_command.append(password)
-        result = subprocess.run(connection_command, capture_output=True)
-        if result.stderr:
-            return "Error: failed to connect to wifi network: <i>%s</i>" % result.stderr.decode()
-        elif result.stdout:
-            return "Success: <i>%s</i>" % result.stdout.decode()
-        return "Error: failed to connect."
+        
+        os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+
+        new_content = ""
+        with open(conf_file, "r+") as file:
+            for line in file:
+                line = line.strip()
+                if line.startswith("WIFI_SSID"):
+                    new_content += 'WIFI_SSID="'+ssid+'"\n'
+                elif line.startswith("WIFI_PASSWORD"):
+                    new_content += 'WIFI_PASSWORD="'+password+'"\n'
+                else:
+                    new_content += line+'\n'
+            file.seek(0,0)
+            file.write(new_content)
+            file.truncate()
+        
+    return "New settings saved OK!<br>Reboot needed!<br><a href='./reboot'>Reboot now</a>"
 
 
+@app.route('/disconnect')
+def raspi_disconnect():
+    try:
+        result = subprocess.check_output("nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2", shell=True)
+        wifi_conn = result.decode().strip()
+        os.system("sudo nmcli connection delete "+str(wifi_conn))
+        os.system("sudo reboot")
+    except subprocess.CalledProcessError as e:
+        return "ERROR:\n" + repr(e.output)
+    return 'Current WIFI connection deleted!'
 
 
+@app.route('/reboot')
+def raspi_reboot():
+    os.system("sudo reboot")
+    return 'Reboot!'
+
+@app.route('/shutdown')
+def raspi_shutdown():
+    os.system("sudo shutdown now")
+    return 'Shutdown!'
 
 
 
