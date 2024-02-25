@@ -190,7 +190,7 @@ sudo raspi-config nonint do_netconf 2
 ## using A Systemd Service
 ## https://github.com/thagrol/Guides/blob/main/boot.pdf
 echo "Editting file /etc/NetworkManager/conf.d/iwd.conf:";
-sudo tee /etc/systemd/system/APortalWeb.service <<EOF
+sudo tee /etc/systemd/system/APwebserver.service <<EOF
 [Unit]
 Description=CaptivePortalWebService
 [Service]
@@ -201,8 +201,8 @@ WantedBy=multi-user.target
 EOF
 # the leading "-" is used to note that failure is tolerated for these commands
 sudo systemctl daemon-reload
-sudo systemctl enable APortalWeb
-sudo systemctl start APortalWeb
+sudo systemctl enable APwebserver
+sudo systemctl start APwebserver
 
 
 echo "Editting file /etc/NetworkManager/conf.d/iwd.conf:";
@@ -301,9 +301,16 @@ sudo systemctl restart dnsmasq
 sleep 10 # wait for wifi to startup
 sudo nmcli device wifi list # wait for wifi to startup
 
+
 #https://unix.stackexchange.com/questions/420640/unable-to-connect-to-any-wifi-with-networkmanager-due-to-error-secrets-were-req
 sudo nmcli connection delete "\${WIFI_SSID}"
 sudo nmcli device wifi connect "\${WIFI_SSID}" password "\${WIFI_PASSWORD}" ifname wlan0
+#https://askubuntu.com/questions/947965/how-to-trigger-network-manager-autoconnect
+sudo nmcli device set wlan0 autoconnect yes
+sudo nmcli connection modify "\${WIFI_SSID}" connection.autoconnect yes # nmcli -f name,autoconnect con
+# cat't just add connection: https://askubuntu.com/questions/1165133/networkmanager-will-not-autoconnect-to-wireless-if-it-is-unavailable-at-creation
+# sudo nmcli connection add type wifi con-name "\$WIFI_SSID" autoconnect yes ssid "\$WIFI_SSID" 802-11-wireless-security.key-mgmt WPA-PSK 802-11-wireless-security.psk "\$WIFI_PASSWORD"
+
 
 #nmcli --ask device wifi connect "\${WIFI_SSID}" password "\${WIFI_PASSWORD}" ifname wlan0
 #nmcli connection show "\${WIFI_SSID}"
@@ -314,8 +321,23 @@ sudo nmcli device wifi connect "\${WIFI_SSID}" password "\${WIFI_PASSWORD}" ifna
 #nmcli connection
 #nmcli device wifi list ifname wlan0
 #nmcli device wifi show-password | grep "SSID:" | cut -d ':' -f 2
+#sudo nmcli device wifi show-password | grep "Password:" | cut -d ':' -f 2
 #https://unix.stackexchange.com/questions/717200/setting-up-a-fixed-ip-wifi-hotspot-with-no-internet-with-dhcp-and-dns-using-dn
 #https://askubuntu.com/questions/1460268/how-do-i-setup-an-access-point-that-starts-on-every-boot
+
+
+
+### Remove WIFI connection data to not delete wifi connection at startup: (up) sudo nmcli connection delete "\${WIFI_SSID}"
+sudo tee \$FILE <<ENDOFFILE
+WIFI_SSID=""
+WIFI_PASSWORD=""
+
+AP_SSID="\${AP_SSID}"
+AP_PASSWORD="\${AP_PASSWORD}"
+
+DEVICE_NAME="\${DEVICE_NAME}"
+ENDOFFILE
+
 
 
 attempts=0
