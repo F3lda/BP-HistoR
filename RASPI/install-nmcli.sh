@@ -17,7 +17,12 @@ sudo nmcli device wifi hotspot ssid "RaspiNet" password "12345678" ifname wlan0
 #https://unix.stackexchange.com/questions/717200/setting-up-a-fixed-ip-wifi-hotspot-with-no-internet-with-dhcp-and-dns-using-dn
 sudo nmcli connection modify Hotspot 802-11-wireless.mode ap ipv4.method manual ipv4.addresses 192.168.11.1/24 ipv4.gateway 192.168.11.1
 
-nmcli dev wifi show-password
+
+# show passwords
+sudo nmcli dev wifi show-password
+sudo grep --with-filename psk= /etc/NetworkManager/system-connections/*
+#https://askubuntu.com/questions/1090065/how-to-find-the-saved-wifi-password-in-ubuntu
+
 
 nmcli connection show "ACMOTO"
 

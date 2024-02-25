@@ -57,19 +57,47 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     <a href="./volume">Volume</a>
     <a href="./volumeup">Volume Up</a>
     <a href="./volumedown">Volume Down</a>
-    <a href="./disconnect">Disconnect WiFi + Reboot</a>
-    <a href="./reboot">Reboot</a>
-    <a href="./shutdown">Shutdown</a>
+    
+
     
     
-    <h3>Wifi Control</h3>"""
+    <h2>Transmitters</h2>
+    <h2>AudioOutputs</h2>
+    <h2>Settings</h2>
+    """
     result = subprocess.check_output("nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2", shell=True)
     dropdowndisplay += "Connected to WiFi: "+str(result.decode().strip())
-    dropdowndisplay += """<br><form action="/submit" method="post">
+    
+    dropdowndisplay += """<br><a href="./disconnect">Disconnect WiFi + Reboot</a>
+    <h3>WiFi saved connections</h3>"""
+    result = subprocess.check_output(["nmcli", "--colors", "no", "-m", "multiline", "connection", "show"])
+    cell_list = result.decode().split('\n')
+    span = 4 # https://stackoverflow.com/questions/1621906/is-there-a-way-to-split-a-string-by-every-nth-separator-in-python
+    connections_list = ["\n".join(cell_list[i:i+span]) for i in range(0, len(cell_list), span)]
+    
+    #output_string = [ ';'.join(x) for x in zip(ssids_list[0::2], ssids_list[1::2]) ]
+    for connection in connections_list:
+        if connection.endswith('wlan0'):
+            dropdowndisplay += connection+ " - <a href='#delete'>delete connection</a><br>"
+            
+    
+    
+    dropdowndisplay +="""
+    <h3>WiFi to connect on next boot-up</h3>"""
+    ## nmcli --colors no connection show --active
+    ## TODO onsubmit - send form
+    ## - fill wifi and password input with current value
+    ## - 
+    dropdowndisplay += """<form action="/submit" method="post">
         <label for="ssid">WiFi network: <input type="text" name="ssid"/></label>
         <label for="password">Password: <input type="text" name="password"/></label>
         <input type="submit" value="Connect">
     </form>
+    <h3>IPtoSpeech</h3>
+    <a href="./togglevoiceip">Toggle IP to Speech</a>
+    <h3>System</h3>
+        <a href="./reboot">Reboot</a><br>
+    <a href="./shutdown">Shutdown</a>
     <script>
     // Get the parent DIV, add click listener...
             document.body.addEventListener("click", function(e) {
@@ -80,6 +108,7 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
                     runcmd(e.target.href);
                 }
             });
+            // TODO onsubmit send form
             async function runcmd(cmd) {
                   const response = await fetch(cmd);
                   const ret = await response.text();
@@ -138,6 +167,28 @@ def raspi_reboot():
 def raspi_shutdown():
     os.system("sudo shutdown now")
     return 'Shutdown!'
+
+
+@app.route('/togglevoiceip')
+def raspi_togglevoiceip():
+    os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+    iptospeech = False
+    new_content = ""
+    with open(conf_file, "r+") as file:
+        for line in file:
+            line = line.strip()
+            if line.startswith("IPtoSPEECH"):
+                if line == "IPtoSPEECH=true":
+                    new_content += 'IPtoSPEECH=false\n'
+                else:
+                    new_content += 'IPtoSPEECH=true\n'
+                    iptospeech = True
+            else:
+                new_content += line+'\n'
+        file.seek(0,0)
+        file.write(new_content)
+        file.truncate()
+    return 'IP to Speech is now: '+str('ON' if iptospeech else 'OFF')
 
 
 
