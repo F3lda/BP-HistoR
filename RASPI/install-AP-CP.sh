@@ -79,6 +79,8 @@ sudo apt install python3-flask -y
 sudo apt install dnsmasq -y
 # install iwd
 sudo apt install iwd -y
+# install festival for IPtoSpeech
+sudo apt-get install festival -y
 
 
 ### SETUP DNSMASQ
@@ -361,8 +363,15 @@ while true; do
             attempts=8
         fi
     else
-        echo "I have network: \$(date)"
-        if [ \$attempts -ne 0 ]; then
+        echo "I have network: $(date)"
+        
+        # IP to Speech
+        . $FILE || true
+        if [ "$IPtoSPEECH" = true ] ; then
+            echo  "My IP address is $(hostname -I)" | festival --tts
+        fi
+        
+        if [ $attempts -ne 0 ]; then
             attempts=0
         fi
     fi
@@ -384,6 +393,8 @@ AP_SSID="${AP_SSID}"
 AP_PASSWORD="${AP_PASSWORD}"
 
 DEVICE_NAME="${DEVICE_NAME}"
+
+IPtoSPEECH=true
 EOF
 sudo chmod 777 /home/histor/web-server/device.conf
 
