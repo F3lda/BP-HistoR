@@ -2,7 +2,7 @@ from flask import Flask,request
 import subprocess
 from threading import Thread
 import os
-from pprint import pprint
+# user repr() as var_dump()
 
 
 app = Flask(__name__)
@@ -59,11 +59,121 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     <a href="./volumedown">Volume Down</a>
     
 
+
+
+
+
+    <h2>AudioOutputs</h2>"""
     
     
-    <h2>Transmitters</h2>
-    <h2>AudioOutputs</h2>
-    <h2>Settings</h2>
+    default_sink = ''
+    try:
+        result = subprocess.check_output("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl info | grep --color=never 'Default Sink: '", shell=True)
+        default_sink = result.decode().strip().removeprefix("Default Sink: ")
+        #dropdowndisplay += "Default sink: "+repr(default_sink)+"<br>"
+    except subprocess.CalledProcessError as e:
+        dropdowndisplay +="command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output)
+    
+    device_sinks = []
+    try:
+        result = subprocess.check_output("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl list sinks | grep --color=never 'Sink \|^[[:space:]]Volume: \|^[[:space:]]Description: \|^[[:space:]]Name: \|^[[:space:]]State: '", shell=True)
+        result = result.decode().strip()
+        result = result.split('\n')
+        curr_sink = 0
+        device_sink = []
+        for i, line in enumerate(result):
+            #device_descs.append(desc.strip().removeprefix("Description: "))
+            if line.startswith('Sink #'):
+                if curr_sink != int(line.removeprefix('Sink #')):
+                    device_sinks.append(device_sink.copy())
+                    device_sink.clear()
+                    curr_sink+=1
+                device_sink.append(line.removeprefix('Sink #'))
+            else:
+                line = line.strip()
+                if line.startswith('State: '):
+                    line = line.removeprefix('State: ')
+                elif line.startswith('Name: '):
+                    line = line.removeprefix('Name: ')
+                    if line == default_sink:
+                        device_sink.append('default')
+                    else:
+                        device_sink.append('')
+                elif line.startswith('Description: '):
+                    line = line.removeprefix('Description: ')
+                elif line.startswith('Volume: '):
+                    line = line.split('/')
+                    if len(line) > 1:
+                        line = line[1].strip()#.removesuffix('%')
+                    else:
+                        line = '(unknown)'
+                device_sink.append(line)
+            #dropdowndisplay += repr(line)+"<br>"
+        device_sinks.append(device_sink.copy())
+        
+        #dropdowndisplay += repr(device_sinks)+"<br>"
+        
+    except subprocess.CalledProcessError as e:
+        dropdowndisplay +="command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output)
+    
+    
+    
+    for sink in device_sinks:
+        dropdowndisplay += repr(sink)+"<br>"
+    
+    
+    
+    
+    
+    
+    
+    
+    source_select = '<option value="SD">SDcard player</option><option value="URL">URL player</option><option value="FM">FM radio</option><option value="DAB">DAB radio</option>' #<option value="undefined">(undefined)</option>
+    for sink in device_sinks:
+        source_select += f'<option value="{sink[0]}">[{sink[0]}] {sink[4]}</option>'
+    dropdowndisplay +=f"""<h2>Transmitters</h2>
+    
+    <table border=1>
+        <tr>
+            <th>LIVE</th>
+            <th>TRANS</th>
+            <th style="cursor:help; text-decoration:underline; text-decoration-style: dotted;"
+                title="Can't use: 10 MHz, 1 MHz -> probably any Freq where (250 % FREQ == 0)">FREQ</th>
+            <th>SOURCE</th>
+        </tr>
+        <tr>
+            <td rowspan="2">
+                <div id="ck-button"><label>
+                    <input type="checkbox" value="1"><span>ON AIR</span>
+                </label></div>
+            </td>
+            <td>
+                <input type="radio" name="trans" value="FM" checked>
+                FM - <input type="text" value="desc-8ch" size="8">
+                - <input type="text" value="long description">
+            </td>
+            <td rowspan="2"><input type="number" name="tentacles" min="1" max="120" value="89.4" size="8" /> MHz</td>
+            <td rowspan="2" style="text-align: center;">
+                <select name="pets" id="pet-select">
+                    {source_select}
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <td><input type="radio" name="trans" value="AM"> AM</td>
+        </tr>
+    </table>
+    """
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    dropdowndisplay +="""<h2>Settings</h2>
     """
     result = subprocess.check_output("nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2", shell=True)
     dropdowndisplay += "Connected to WiFi: "+str(result.decode().strip())
@@ -116,6 +226,49 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
             }
 
         </script>
+        <style>
+/* source: https://jsfiddle.net/zAFND/4/   */
+div label input {
+   margin-right:100px;
+}
+body {
+    font-family:sans-serif;
+}
+
+#ck-button {
+    margin:4px;
+    background-color:#EFEFEF;
+    border-radius:4px;
+    border:1px solid #D0D0D0;
+    overflow:auto;
+    float:left;
+}
+
+#ck-button:hover {
+    background:red;
+}
+
+#ck-button label {
+    float:left;
+    width:4.0em;
+}
+
+#ck-button label span {
+    text-align:center;
+    padding:3px 0px;
+    display:block;
+}
+
+#ck-button label input {
+    position:absolute;
+    top:-20px;
+}
+
+#ck-button input:checked + span {
+    background-color:#911;
+    color:#fff;
+}
+</style>
         """
     return dropdowndisplay
 
