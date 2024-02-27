@@ -202,7 +202,7 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     
     
     
-    source_select = '<option value="SD">SDcard player</option><option value="URL">URL player</option><option value="FM">FM radio</option><option value="DAB">DAB radio</option>' #<option value="undefined">(undefined)</option>
+    source_select = '' #<option value="undefined">(undefined)</option>
     for sink in device_sinks:
         source_select += f'<option value="{sink[0]}">[{sink[0]}] {sink[4]}</option>'
     dropdowndisplay +=f"""<h2>Transmitters</h2>
