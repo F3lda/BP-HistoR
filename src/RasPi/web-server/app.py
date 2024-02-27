@@ -47,23 +47,30 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     
     dropdowndisplay = ""
     dropdowndisplay += """
+
+
+
     <h1>HistoR</h1><hr>
-    <a href="./play">Play</a>
-    <a href="./playradio">Play Radio</a>
-    <a href="./playFM">Play FM (89 MHz)</a>
-    <a href="./playAM7000">Play AM (7 MHz)</a>
-    <a href="./playAM1600">Play AM (1.6 MHz)</a>
-    <a href="./stop">Stop</a>
-    <a href="./volume">Volume</a>
-    <a href="./volumeup">Volume Up</a>
-    <a href="./volumedown">Volume Down</a>
-    
 
 
-
-
-
-    <h2>AudioOutputs</h2>"""
+    <h2>AudioOutputs</h2>
+    <table border=1>
+        <tr>
+            <th colspan="5">DEVICE</th>
+            <th>SOURCE</th>
+            <th colspan="3">CONTROLS</th>
+        </tr>
+        <tr>
+            <td>DEFAULT</td>
+            <td>ID</td>
+            <td>NAME</td>
+            <td>STATE</td>
+            <td>VOLUME</td>
+            <td>AUDIO SOURCE</td>
+            <td>PLAYING</td>
+            <td>AUTOPLAY</td>
+            <td>CONTROLS</td>
+        </tr>"""
     
     
     default_sink = ''
@@ -96,7 +103,7 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
                 elif line.startswith('Name: '):
                     line = line.removeprefix('Name: ')
                     if line == default_sink:
-                        device_sink.append('default')
+                        device_sink.append('checked')
                     else:
                         device_sink.append('')
                 elif line.startswith('Description: '):
@@ -104,7 +111,7 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
                 elif line.startswith('Volume: '):
                     line = line.split('/')
                     if len(line) > 1:
-                        line = line[1].strip()#.removesuffix('%')
+                        line = line[1].strip().removesuffix('%')
                     else:
                         line = '(unknown)'
                 device_sink.append(line)
@@ -119,11 +126,78 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     
     
     for sink in device_sinks:
-        dropdowndisplay += repr(sink)+"<br>"
+        #dropdowndisplay += repr(sink)+"<br>"
+        dropdowndisplay +=f"""
+  		<tr>
+            <td><input type="radio" name="default" {sink[2]}></td>
+            <td>{sink[0]}</td>
+            <td>{sink[4]}</td>
+            <td>{sink[1]}</td>
+            <td><input type="number" name="tentacles" min="1" max="120" value="{sink[5]}" size="5">%</td>
+            <td>
+                <select class="cls-controls" name="sink-{sink[0]}-source" onchange="change_controls(this.name, {sink[0]}, this.value)">
+                    <option value="SD">SDcard player</option>
+                    <option value="URL">URL player</option>
+                    <option value="FM">FM radio</option>
+                    <option value="BT">Bluetooth</option>
+                    <option value="DAB">DAB radio</option>
+                </select>
+            </td>
+            <td><input type="checkbox" checked disabled></td>
+            <td><input type="checkbox" checked></td>
+            <td id="controls-{sink[0]}"></td>
+        </tr>
+    """
     
     
+    dropdowndisplay += """
+    </table>
+    <script>
+    window.addEventListener("load", function(event) {
+        var list = document.getElementsByClassName("cls-controls") ;
+        for (let item of list) {
+            item.dispatchEvent(new Event('change'));
+        }
+    });
     
-    
+    function change_controls(name, id, value)
+    {
+        var controls = document.getElementById("controls-"+id)
+        if (value == "SD") {
+            controls.innerHTML = `<input type="submit" value="<" title="previous">
+            <input type="submit" value="II" title="pause">
+            <input type="submit" value="|>" title="play">
+            <input type="submit" value="O" title="stop">
+            <input type="submit" value=">" title="next"> - 
+            repeat: <input type="checkbox" checked>
+            shuffle: <input type="checkbox" checked>
+            autoplay: <input type="checkbox" checked>
+            - <a href="#select">select track</a>`
+        } else if (value == "URL") {
+            controls.innerHTML = `<input type="text" value="" placeholder="URL" title="URL">
+            <input type="submit" value="|>" title="play">
+            <input type="submit" value="O" title="stop"><!--- maybe TODO: URL list; --->`
+        } else if (value == "FM") {
+            controls.innerHTML = `<input type="number" value="" placeholder="FREQ" title="FREQ">
+            <input type="submit" value="<" title="tune down">
+            <input type="submit" value="|>" title="play">
+            <input type="submit" value="O" title="stop">
+            <input type="submit" value=">" title="tune up">`
+        } else if (value == "BT") {
+            controls.innerHTML = `<input type="text" value="" placeholder="BT NAME" title="BT NAME">
+            <input type="submit" value="ON" title="play">
+            <input type="submit" value="OFF" title="stop">`
+        } else if (value == "DAB") {
+            controls.innerHTML = `<input type="text" value="" placeholder="CHANNEL" title="CHANNEL">
+            <input type="submit" value="<" title="tune down">
+            <input type="submit" value="|>" title="play">
+            <input type="submit" value="O" title="stop">
+            <input type="submit" value=">" title="tune up">`
+        }
+        console.log(name + ": " + value)
+    }
+    </script>
+    """
     
     
     
@@ -140,6 +214,8 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
             <th style="cursor:help; text-decoration:underline; text-decoration-style: dotted;"
                 title="Can't use: 10 MHz, 1 MHz -> probably any Freq where (250 % FREQ == 0)">FREQ</th>
             <th>SOURCE</th>
+            <th style="cursor:help; text-decoration:underline; text-decoration-style: dotted;"
+                title="If checked, automatically put ON AIR on boot">AUTOPLAY</th>
         </tr>
         <tr>
             <td rowspan="2">
@@ -158,11 +234,29 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
                     {source_select}
                 </select>
             </td>
+            <td rowspan="2" style="text-align: center;">
+                <input type="checkbox" value="1">
+            </td>
         </tr>
         <tr>
             <td><input type="radio" name="trans" value="AM"> AM</td>
         </tr>
     </table>
+    
+    
+    
+    
+    <h2>Tests</h2>
+    <a href="./play">Play</a>
+    <a href="./playradio">Play Radio</a>
+    <a href="./playFM">Play FM (89 MHz)</a>
+    <a href="./playAM7000">Play AM (7 MHz)</a>
+    <a href="./playAM1600">Play AM (1.6 MHz)</a>
+    <a href="./stop">Stop</a>
+    <a href="./volume">Volume</a>
+    <a href="./volumeup">Volume Up</a>
+    <a href="./volumedown">Volume Down</a>
+    
     """
     
     
@@ -173,7 +267,10 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     
     
     
-    dropdowndisplay +="""<h2>Settings</h2>
+    dropdowndisplay +="""
+    <br><br><br><br><br><br>
+    <h2>Settings</h2>
+    <h3>WiFi state</h3>
     """
     result = subprocess.check_output("nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2", shell=True)
     dropdowndisplay += "Connected to WiFi: "+str(result.decode().strip())
@@ -358,8 +455,11 @@ def raspi_play():
     if FMAMtransmittingProcess == None:
         #play_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
         #play_command = ["python", "--version"]
-        play_command = ["mplayer", "-ao", "alsa:device=hw=0.0", "./MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3"]
-        FMAMtransmittingProcess = subprocess.Popen(play_command, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        #play_command = ["mplayer", "-ao", "alsa:device=hw=0.0", "./MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3"]
+        #FMAMtransmittingProcess = subprocess.Popen(play_command, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::0 './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3'"
+        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        
         return 'Started Playing...'
     return 'Still playing!'
 

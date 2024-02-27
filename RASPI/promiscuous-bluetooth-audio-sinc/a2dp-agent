@@ -71,13 +71,20 @@ class Agent(dbus.service.Object):
     def Cancel(self):
         print("Cancel")
 
-def quit(manager, mloop):
+def quit(manager, mloop):      
     manager.UnregisterAgent(AGENT_PATH)
     print("\nAgent unregistered")
     
     mloop.quit()
+    
+    
+    os.system("sudo rfkill block bluetooth")
+
 
 if __name__ == '__main__':
+    os.system("sudo rfkill unblock bluetooth")
+
+
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
     bus = dbus.SystemBus()
