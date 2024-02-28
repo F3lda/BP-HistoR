@@ -1,4 +1,8 @@
 #!/bin/bash
+# NOT WORKING!!!
+# install first: install-dab-terminal.sh
+# then:
+git clone https://github.com/JvanKatwijk/dab-cmdline
 
 cd dab-cmdline
 cd example-3
@@ -7,12 +11,16 @@ cd build
 cmake .. -DRTLSDR=ON # (replace XXX by the name of the device)
 make
 sudo make install
-cd ../../..
+#cd ../../..
+
+
+
+dab-rtlsdr-3 -C 8A -P "DAB" -D 60 -d 60 | aplay -r 48000 -f S16_LE -t raw -c 2
 
 
 echo
 echo "Run:"
-echo "dab-rtlsdr-2 -M 1 -B "BAND III" -C 1A -P "TOP40" -G 80 -A defaul"
+echo "dab-rtlsdr-3 -M 1 -B "BAND III" -C 8A -P "DAB PLUS TOP 40" -G 80 -A default | aplay -r 48000 -f S16_LE -t raw -c 2"
 echo "dab-rtlsdr-3 -M 1 -B BAND_III -C 1A -P "TOP40" -G 80 | aplay -r 48000 -f S16_LE -t raw -c 2"
 echo
 echo "If ERRROR:"

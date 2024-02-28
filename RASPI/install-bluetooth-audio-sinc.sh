@@ -41,3 +41,16 @@ echo
 echo "sudo /usr/local/bin/a2dp-agent"
 echo
 # https://gist.github.com/mill1000/74c7473ee3b4a5b13f6325e9994ff84c
+
+
+
+#CHANGE BLUETOOTH OUTPUT SINK DEVICE
+#1 move sink input
+pactl list sink-inputs
+# media.icon_name = "audio-card-bluetooth"
+
+pactl move-sink-input 63 1
+pactl move-sink-input <sink-input-id> <sink-id>
+
+#2 set default sink
+pactl set-default-sink 1 && pactl move-sink-input 63 1 # move maybe not needed
