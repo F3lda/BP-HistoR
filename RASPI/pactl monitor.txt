@@ -1,0 +1,51 @@
+mplayer -ao pulse::0 https://ice5.abradio.cz/hitvysocina128.mp3
+
+
+parec --format=s16le -d alsa_output.platform-bcm2835_audio.analog-stereo.monitor | sudo ./LIBS/rpitx/pifmrds -ps 'HistoRPi' -rt 'HistoRPi: live FM-RDS transmission from the RaspberryPi' -freq 102.0 -audio -
+parec --format=s16le -d alsa_output.platform-snd_aloop.0.analog-stereo.monitor | sudo ./pifmrds -ps 'HistoRPi' -rt 'HistoRPi: live FM-RDS transmission from the RaspberryPi' -freq 102.0 -audio -
+
+https://askubuntu.com/questions/1322517/how-to-live-streamraw-format-bytes-audio-from-pulseaudio-sink-to-a-local-udp-s
+
+sox -d -t raw -b 8 -r 22050 - gain -5 tempo 0.97 | sudo ./pifmrds -ps 'HistoRPi' -rt 'HistoRPi: live FM-RDS transmission from the RaspberryPi' -freq 102.0 -audio -
+
+
+alsa_output.platform-bcm2835_audio.analog-stereo.monitor
+alsa_output.platform-bcm2835_audio.analog-stereo.monitor
+alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
+
+pactl list sources short
+
+ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i 0 -ac 2 -f wav - | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
+ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i 1 -ac 2 -f wav - | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
+ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i 2 -ac 2 -f wav - | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
+
+parec -d alsa_output.platform-snd_aloop.0.analog-stereo.monitor | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
+
+parec --monitor-stream=1 | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
+
+aplay -Dhw:0 | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
+
+
+pacmd load-module module-null-sink sink_name=MySink
+pacmd update-sink-proplist MySink device.description=MySink
+pacmd update-source-proplist MySink.monitor device.description='"Monitor of MySink"'
+
+
+pactl load-module module-loopback source=alsa_output.platform-bcm2835_audio.analog-stereo.monitor sink=MySink
+pactl unload-module 26
+
+ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i MySink.monitor -ac 2 -f wav - | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
+
+
+https://unix.stackexchange.com/questions/174379/how-can-i-create-a-virtual-output-in-pulseaudio
+#1 create loopback
+sudo modprobe snd_aloop
+#2 set loopback as default sink
+pactl set-default-sink 1
+#3 run transmitter from loopbacks monitor (source)
+ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i 1 -ac 2 -f wav - | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
+#4 play anything there (sink)
+mplayer -ao pulse::1 https://ice5.abradio.cz/hitvysocina128.mp3
+
+#bridge default sink to loopback sink
+ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i default -ac 2 -f wav - | mplayer -ao pulse::1 -noconsolecontrols -cache 1024 -
