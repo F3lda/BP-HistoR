@@ -25,17 +25,22 @@ parec --monitor-stream=1 | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-
 
 aplay -Dhw:0 | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
 
-
+### HERE - start
+#https://unix.stackexchange.com/questions/174379/how-can-i-create-a-virtual-output-in-pulseaudio
 pacmd load-module module-null-sink sink_name=MySink
 pacmd update-sink-proplist MySink device.description=MySink
 pacmd update-source-proplist MySink.monitor device.description='"Monitor of MySink"'
 
 
-pactl load-module module-loopback source=alsa_output.platform-bcm2835_audio.analog-stereo.monitor sink=MySink
-pactl unload-module 26
+#pactl load-module module-loopback source=alsa_output.platform-bcm2835_audio.analog-stereo.monitor sink=MySink
+#pactl unload-module 26
 
 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i MySink.monitor -ac 2 -f wav - | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -
 
+
+mplayer -ao pulse::MySink https://ice5.abradio.cz/hitvysocina128.mp3
+mplayer -ao pulse::MySink ./MUSIC/Bloodhound\ Gang\ -\ The\ Bad\ Touch\ \(Hugh\ Graham\ Bootleg\)\ \[FREE\ DOWNLOAD\].mp3
+### HERE - end
 
 https://unix.stackexchange.com/questions/174379/how-can-i-create-a-virtual-output-in-pulseaudio
 #1 create loopback

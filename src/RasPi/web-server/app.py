@@ -2,6 +2,7 @@ from flask import Flask,request
 import subprocess
 from threading import Thread
 import os
+import time
 # user repr() as var_dump()
 
 
@@ -247,15 +248,25 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     
     
     <h2>Tests</h2>
+    Audio<br>
     <a href="./play">Play</a>
-    <a href="./playradio">Play Radio</a>
-    <a href="./playFM">Play FM (89 MHz)</a>
-    <a href="./playAM7000">Play AM (7 MHz)</a>
-    <a href="./playAM1600">Play AM (1.6 MHz)</a>
+    <a href="./playradio">Play Internet Radio</a>
+    <a href="./playFM">Play FM Radio (107.0 MHz)</a>
+    <a href="./playDAB">Play DAB Radio (DAB TOP40)</a>
+    <a href="./playBT">Play Bluetooth</a>
+    <br>
     <a href="./stop">Stop</a>
+    <br>Volume<br>
     <a href="./volume">Volume</a>
-    <a href="./volumeup">Volume Up</a>
-    <a href="./volumedown">Volume Down</a>
+    <a href="./volumeUp">Volume Up</a>
+    <a href="./volumeDown">Volume Down</a>
+    <br>Transmitters<br>
+    <a href="./transFM">Play FM (89 MHz)</a>
+    <a href="./transAM7000">Play AM (7 MHz)</a>
+    <a href="./transAM1600">Play AM (1.6 MHz)</a>
+    <br>
+    <a href="./transStop">Stop</a>
+    
     
     """
     
@@ -370,95 +381,30 @@ body {
     return dropdowndisplay
 
 
-@app.route('/submit',methods=['POST'])
-def submit():
-    if request.method == 'POST':
-        print(*list(request.form.keys()), sep = ", ")
-        ssid = request.form['ssid']
-        password = request.form['password']
-        
-        os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
-
-        new_content = ""
-        with open(conf_file, "r+") as file:
-            for line in file:
-                line = line.strip()
-                if line.startswith("WIFI_SSID"):
-                    new_content += 'WIFI_SSID="'+ssid+'"\n'
-                elif line.startswith("WIFI_PASSWORD"):
-                    new_content += 'WIFI_PASSWORD="'+password+'"\n'
-                else:
-                    new_content += line+'\n'
-            file.seek(0,0)
-            file.write(new_content)
-            file.truncate()
-        
-    return "New settings saved OK!<br>Reboot needed!<br><a href='./reboot'>Reboot now</a>"
-
-
-@app.route('/disconnect')
-def raspi_disconnect():
-    try:
-        result = subprocess.check_output("nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2", shell=True)
-        wifi_conn = result.decode().strip()
-        os.system("sudo nmcli connection delete "+str(wifi_conn))
-        os.system("sudo reboot")
-    except subprocess.CalledProcessError as e:
-        return "ERROR:\n" + repr(e.output)
-    return 'Current WIFI connection deleted!'
-
-
-@app.route('/reboot')
-def raspi_reboot():
-    os.system("sudo reboot")
-    return 'Reboot!'
-
-@app.route('/shutdown')
-def raspi_shutdown():
-    os.system("sudo shutdown now")
-    return 'Shutdown!'
-
-
-@app.route('/togglevoiceip')
-def raspi_togglevoiceip():
-    os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
-    iptospeech = False
-    new_content = ""
-    with open(conf_file, "r+") as file:
-        for line in file:
-            line = line.strip()
-            if line.startswith("IPtoSPEECH"):
-                if line == "IPtoSPEECH=true":
-                    new_content += 'IPtoSPEECH=false\n'
-                else:
-                    new_content += 'IPtoSPEECH=true\n'
-                    iptospeech = True
-            else:
-                new_content += line+'\n'
-        file.seek(0,0)
-        file.write(new_content)
-        file.truncate()
-    return 'IP to Speech is now: '+str('ON' if iptospeech else 'OFF')
 
 
 
-FMAMtransmittingProcess = None
+##########################
+# TESTS
+##########################
+
+AUDIOplayingProcess = None
 
 @app.route('/play')
 def raspi_play():
-    global FMAMtransmittingProcess
+    global AUDIOplayingProcess
     
-    if FMAMtransmittingProcess != None:
-        if FMAMtransmittingProcess.poll() != None:
-            FMAMtransmittingProcess = None
+    if AUDIOplayingProcess != None:
+        if AUDIOplayingProcess.poll() != None:
+            AUDIOplayingProcess = None
     
-    if FMAMtransmittingProcess == None:
+    if AUDIOplayingProcess == None:
         #play_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
         #play_command = ["python", "--version"]
         #play_command = ["mplayer", "-ao", "alsa:device=hw=0.0", "./MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3"]
-        #FMAMtransmittingProcess = subprocess.Popen(play_command, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::0 './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3'"
-        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        #AUDIOplayingProcess = subprocess.Popen(play_command, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::TransmittersSink './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3'"
+        AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
         
         return 'Started Playing...'
     return 'Still playing!'
@@ -467,53 +413,17 @@ def raspi_play():
 
 @app.route('/playradio')
 def raspi_playradio():
-    global FMAMtransmittingProcess
+    global AUDIOplayingProcess
     
-    if FMAMtransmittingProcess != None:
-        if FMAMtransmittingProcess.poll() != None:
-            FMAMtransmittingProcess = None
+    if AUDIOplayingProcess != None:
+        if AUDIOplayingProcess.poll() != None:
+            AUDIOplayingProcess = None
     
-    if FMAMtransmittingProcess == None:
+    if AUDIOplayingProcess == None:
         #play_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
         #play_command = ["python", "--version"]
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::0 https://ice5.abradio.cz/hitvysocina128.mp3"
-        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
-        return 'Started Playing...'
-    return 'Still playing!'
-
-
-@app.route('/playAM7000')
-def raspi_playAM7000():
-    global FMAMtransmittingProcess
-    
-    if FMAMtransmittingProcess != None:
-        if FMAMtransmittingProcess.poll() != None:
-            FMAMtransmittingProcess = None
-    
-    if FMAMtransmittingProcess == None:
-        #play_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
-        #play_command = ["python", "--version"]
-        # !!! for some reason RASPI disconnects from the network when transmitting on 10 MHz -> don't use it
-        play_command = "ffmpeg -i './MUSIC/Modern Talking - Cheri Cheri Lady (T-Beat Rework) 2k23.mp3' -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 7000"
-        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
-        return 'Started Playing...'
-    return 'Still playing!'
-
-
-
-@app.route('/playAM1600')
-def raspi_playAM1600():
-    global FMAMtransmittingProcess
-    
-    if FMAMtransmittingProcess != None:
-        if FMAMtransmittingProcess.poll() != None:
-            FMAMtransmittingProcess = None
-    
-    if FMAMtransmittingProcess == None:
-        #play_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
-        #play_command = ["python", "--version"]
-        play_command = "ffmpeg -i './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3' -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 1600"
-        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::TransmittersSink https://ice5.abradio.cz/hitvysocina128.mp3"
+        AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
         return 'Started Playing...'
     return 'Still playing!'
 
@@ -521,29 +431,85 @@ def raspi_playAM1600():
 
 @app.route('/playFM')
 def raspi_playFM():
-    global FMAMtransmittingProcess
+    global AUDIOplayingProcess
     
-    if FMAMtransmittingProcess != None:
-        if FMAMtransmittingProcess.poll() != None:
-            FMAMtransmittingProcess = None
+    if AUDIOplayingProcess != None:
+        if AUDIOplayingProcess.poll() != None:
+            AUDIOplayingProcess = None
     
-    if FMAMtransmittingProcess == None:
-        #play_command = ["nmcli", "--colors", "no", "device", "wifi", "connect", ssid, "ifname", wifi_device]
-        #play_command = ["python", "--version"]
-        play_command = "ffmpeg -i './MUSIC/Bloodhound Gang - The Bad Touch (Hugh Graham Bootleg) [FREE DOWNLOAD].mp3' -f wav - | sudo ./LIBS/rpitx/pifmrds -freq 89.0 -audio -"
-        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+    if AUDIOplayingProcess == None:
+        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 rtl_fm -f 107e6 -s 200000 -r 48000 | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
+        AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        return 'Started Playing...'
+    return 'Still playing!'
+
+
+
+@app.route('/playDAB')
+def raspi_playDAB():
+    global AUDIOplayingProcess
+    
+    if AUDIOplayingProcess != None:
+        if AUDIOplayingProcess.poll() != None:
+            AUDIOplayingProcess = None
+    
+    if AUDIOplayingProcess == None:
+        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 8A -P 'DAB' -D 60 -d 60 | ffmpeg -loglevel error -i pipe: -c:a pcm_s16le -f s16le pipe: | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
+        AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        return 'Started Playing...'
+    return 'Still playing!'
+
+
+
+@app.route('/playBT')
+def raspi_playBT():
+    global AUDIOplayingProcess
+    
+    if AUDIOplayingProcess != None:
+        if AUDIOplayingProcess.poll() != None:
+            AUDIOplayingProcess = None
+    
+    if AUDIOplayingProcess == None:
+        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink TransmittersSink && python ./LIBS/promiscuous-bluetooth-audio-sinc/a2dp-agent"
+        AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
         return 'Started Playing...'
     return 'Still playing!'
 
 
 
 
-@app.route('/volumeup')
-def raspi_volumeup():
+@app.route('/stop')
+def raspi_stop():
+    global AUDIOplayingProcess
+    
+    if AUDIOplayingProcess != None:
+        if AUDIOplayingProcess.poll() == None:
+            AUDIOplayingProcess.terminate()
+            os.system("sudo killall mplayer")
+            os.system("sudo killall ffmpeg")
+            return 'Stopped!'
+        AUDIOplayingProcess = None
+    return 'Nothing playing!'
+
+
+
+
+
+
+
+
+
+
+
+# VOLUME
+##########################
+
+@app.route('/volumeUp')
+def raspi_volumeUp():
     ## https://unix.stackexchange.com/questions/457946/pactl-works-in-userspace-not-as-root-on-i3
     ## user id: id -u
     ## user id = 1000
-    os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-volume 0 +5%")
+    os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-volume TransmittersSink +10%")
 
     output="Volume: "
     try:
@@ -556,12 +522,12 @@ def raspi_volumeup():
     
     return output
 
-@app.route('/volumedown')
-def raspi_volumedown():
+@app.route('/volumeDown')
+def raspi_volumeDown():
     ## https://unix.stackexchange.com/questions/457946/pactl-works-in-userspace-not-as-root-on-i3
     ## user id: id -u
     ## user id = 1000
-    os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-volume 0 -5%")
+    os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-volume TransmittersSink -10%")
     
     output="Volume: "
     try:
@@ -589,6 +555,12 @@ def raspi_volume():
     return output
 
 
+
+
+
+
+
+
 ## TODO: wait for song end
 def run_cmd_background(cmd):
     data = {'cmd': cmd}
@@ -597,7 +569,7 @@ def run_cmd_background(cmd):
     return thr
 
 def run_async_func(app, data):
-    global FMAMtransmittingProcess
+    global AUDIOplayingProcess
     
     with app.app_context():
     # Your working code here!
@@ -607,14 +579,84 @@ def run_async_func(app, data):
         else:
             print("Command failed with return code", return_code)
         
-        FMAMtransmittingProcess = None
+        AUDIOplayingProcess = None
 
 
 
 
 
-@app.route('/stop')
-def raspi_stop():
+
+
+
+
+
+
+
+
+
+
+
+# TRANSMITTERS
+##########################
+
+FMAMtransmittingProcess = None
+
+@app.route('/transFM')
+def raspi_transFM():
+    global FMAMtransmittingProcess
+    
+    if FMAMtransmittingProcess != None:
+        if FMAMtransmittingProcess.poll() != None:
+            FMAMtransmittingProcess = None
+    
+    if FMAMtransmittingProcess == None:
+    
+        #play_command = "ffmpeg -i './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3' -f wav - | sudo ./LIBS/rpitx/pifmrds -freq 89.0 -audio -"
+        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i TransmittersSink.monitor -ac 2 -f wav - | sudo ./LIBS/rpitx/pifmrds -ps 'HistoRPi' -rt 'HistoRPi: live FM-RDS transmission from the RaspberryPi' -freq 89.0 -audio -"
+        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        
+        return 'Started transmitting...'
+    return 'Still transmitting!'
+
+
+@app.route('/transAM7000')
+def raspi_transAM7000():
+    global FMAMtransmittingProcess
+    
+    if FMAMtransmittingProcess != None:
+        if FMAMtransmittingProcess.poll() != None:
+            FMAMtransmittingProcess = None
+    
+    if FMAMtransmittingProcess == None:
+        
+        play_command = "ffmpeg -i './MUSIC/Bloodhound Gang - The Bad Touch (Hugh Graham Bootleg) [FREE DOWNLOAD].mp3' -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 7000"
+        #play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i TransmittersSink.monitor -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 7000"
+        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        
+        return 'Started transmitting...'
+    return 'Still transmitting!'
+
+
+@app.route('/transAM1600')
+def raspi_transAM1600():
+    global FMAMtransmittingProcess
+    
+    if FMAMtransmittingProcess != None:
+        if FMAMtransmittingProcess.poll() != None:
+            FMAMtransmittingProcess = None
+    
+    if FMAMtransmittingProcess == None:
+        
+        play_command = "ffmpeg -i './MUSIC/Modern Talking - Cheri Cheri Lady (T-Beat Rework) 2k23.mp3' -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 1600"
+        #play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i TransmittersSink.monitor -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 1600"
+        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+        
+        return 'Started transmitting...'
+    return 'Still transmitting!'
+
+
+@app.route('/transStop')
+def raspi_transStop():
     global FMAMtransmittingProcess
     
     if FMAMtransmittingProcess != None:
@@ -622,9 +664,108 @@ def raspi_stop():
             FMAMtransmittingProcess.terminate()
             os.system("sudo killall mplayer")
             os.system("sudo killall ffmpeg")
-            return 'Stopped!'
+            return 'Stopped transmitting!'
         FMAMtransmittingProcess = None
-    return 'Nothing playing!'
+    return 'Nothing transmitting!'
+
+
+
+
+
+##########################
+# SETTINGS
+##########################
+
+@app.route('/disconnect')
+def raspi_disconnect():
+    try:
+        result = subprocess.check_output("nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2", shell=True)
+        wifi_conn = result.decode().strip()
+        os.system("sudo nmcli connection delete "+str(wifi_conn))
+        os.system("sudo reboot")
+    except subprocess.CalledProcessError as e:
+        return "ERROR:\n" + repr(e.output)
+    return 'Current WIFI connection deleted!'
+
+@app.route('/submit',methods=['POST'])
+def submit():
+    if request.method == 'POST':
+        print(*list(request.form.keys()), sep = ", ")
+        ssid = request.form['ssid']
+        password = request.form['password']
+        
+        os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+
+        new_content = ""
+        with open(conf_file, "r+") as file:
+            for line in file:
+                line = line.strip()
+                if line.startswith("WIFI_SSID"):
+                    new_content += 'WIFI_SSID="'+ssid+'"\n'
+                elif line.startswith("WIFI_PASSWORD"):
+                    new_content += 'WIFI_PASSWORD="'+password+'"\n'
+                else:
+                    new_content += line+'\n'
+            file.seek(0,0)
+            file.write(new_content)
+            file.truncate()
+        
+    return "New settings saved OK!<br>Reboot needed!<br><a href='./reboot'>Reboot now</a>"
+
+@app.route('/togglevoiceip')
+def raspi_togglevoiceip():
+    os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+    iptospeech = False
+    new_content = ""
+    with open(conf_file, "r+") as file:
+        for line in file:
+            line = line.strip()
+            if line.startswith("IPtoSPEECH"):
+                if line == "IPtoSPEECH=true":
+                    new_content += 'IPtoSPEECH=false\n'
+                else:
+                    new_content += 'IPtoSPEECH=true\n'
+                    iptospeech = True
+            else:
+                new_content += line+'\n'
+        file.seek(0,0)
+        file.write(new_content)
+        file.truncate()
+    return 'IP to Speech is now: '+str('ON' if iptospeech else 'OFF')
+
+@app.route('/reboot')
+def raspi_reboot():
+    os.system("sudo reboot")
+    return 'Reboot!'
+
+@app.route('/shutdown')
+def raspi_shutdown():
+    os.system("sudo shutdown now")
+    return 'Shutdown!'
+
+
+
+
+
+##########################
+# MAIN
+##########################
+def main():
+    # commands to run before webserver starts
+    
+    # wait for pulseaudio
+    while os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl info") != 0:
+        time.sleep(1)
+        print("WAITING FOR PULSEAUDIO...")
+    print("PULSEADUIO READY!")
+    # create virtual audio device for transmitters
+    if os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl list sources short | grep --color=never TransmittersSink") != 0:
+        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd load-module module-null-sink sink_name=TransmittersSink")
+        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-sink-proplist TransmittersSink device.description=TransmittersSink")
+        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-source-proplist TransmittersSink.monitor device.description='Monitor of TransmittersSink'")
+
+
 
 if __name__ == '__main__':
+    main()
     app.run(debug=True, host='0.0.0.0', port=80)
