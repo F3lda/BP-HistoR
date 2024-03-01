@@ -57,7 +57,7 @@ echo
 
 echo
 echo "BLUETOOTH"
-echo "ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i default -ac 2 -f wav - | sudo ./pifmrds -ps "HistoRPi" -rt "HistoRPi: live FM-RDS transmission from the RaspberryPi" -freq 102.0 -audio -"
+echo "ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i default -ac 2 -f wav - | sudo ./pifmrds -ps 'HistoRPi' -rt 'HistoRPi: live FM-RDS transmission from the RaspberryPi' -freq 102.0 -audio -"
 echo "sudo ./pifmrds -ps 'HistoRPi' -rt 'HistoRPi: live FM-RDS transmission from the RaspberryPi' -freq 102.0 -audio - < <(ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i default -ac 2 -f wav -)"
 echo
 
@@ -65,3 +65,22 @@ echo
 #pactl list short sources
 #https://superuser.com/questions/1326829/non-monotonous-dts-in-output-stream
 
+
+
+
+
+
+### FROM SINK TO RPITX - WORKING!!!
+#https://stackoverflow.com/questions/45899585/pipe-input-in-to-ffmpeg-stdin
+#https://unix.stackexchange.com/questions/45837/pipe-the-output-of-parec-to-sox
+#https://github.com/ha7ilm/csdr/blob/master/csdr.c
+
+## FM
+#./pifmrds #parec -d TransmittersSink.monitor | ffmpeg -use_wallclock_as_timestamps 1 -ac 2 -f s16le -i pipe: -f wav pipe: | sudo ./LIBS/rpitx/pifmrds -ps 'HistoRPi' -rt 'HistoRPi: live FM-RDS transmission from the RaspberryPi' -freq 89.0 -audio -
+
+## AM - to get the best quality -> compromise between ffmpeg "volume=" and gain_ff
+#./testnfm.sh #parec -d TransmittersSink.monitor | ffmpeg -use_wallclock_as_timestamps 1 -ac 2 -f s16le -i pipe: -filter:a "volume=10dB" -ac 1 -ar 48000 -f wav pipe: | csdr convert_s16_f | csdr gain_ff 3000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 7000
+
+
+#./testnfm.sh #parec -d TransmittersSink.monitor | ffmpeg -use_wallclock_as_timestamps 1 -ac 2 -f s16le -i pipe: -filter:a "volume=10dB" -ac 1 -ar 48000 -f wav pipe: | csdr convert_s16_f | csdr gain_ff 10000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 1600
+#./testam.sh #parec -d TransmittersSink.monitor | ffmpeg -use_wallclock_as_timestamps 1 -ac 2 -f s16le -i pipe: -filter:a "volume=10dB" -ac 1 -ar 48000 -f wav pipe: | csdr convert_s16_f | csdr gain_ff 4.0 | csdr dsb_fc | sudo ./LIBS/rpitx/rpitx -i - -m IQFLOAT -f 1600 -s 48000
