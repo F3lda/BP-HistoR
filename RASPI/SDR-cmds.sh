@@ -75,12 +75,26 @@ echo
 #https://unix.stackexchange.com/questions/45837/pipe-the-output-of-parec-to-sox
 #https://github.com/ha7ilm/csdr/blob/master/csdr.c
 
+
+### ffmpeg and parec versions
+
+
 ## FM
 #./pifmrds #parec -d TransmittersSink.monitor | ffmpeg -use_wallclock_as_timestamps 1 -ac 2 -f s16le -i pipe: -f wav pipe: | sudo ./LIBS/rpitx/pifmrds -ps 'HistoRPi' -rt 'HistoRPi: live FM-RDS transmission from the RaspberryPi' -freq 89.0 -audio -
+#./pifmrds #ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i TransmittersSink.monitor -ac 2 -f wav - | sudo ./LIBS/rpitx/pifmrds -ps 'HistoRPi' -rt 'HistoRPi: live FM-RDS transmission from the RaspberryPi' -freq 89.0 -audio -
 
 ## AM - to get the best quality -> compromise between ffmpeg "volume=" and gain_ff
-#./testnfm.sh #parec -d TransmittersSink.monitor | ffmpeg -use_wallclock_as_timestamps 1 -ac 2 -f s16le -i pipe: -filter:a "volume=10dB" -ac 1 -ar 48000 -f wav pipe: | csdr convert_s16_f | csdr gain_ff 3000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 7000
+#./testnfm.sh #parec -d TransmittersSink.monitor | ffmpeg -use_wallclock_as_timestamps 1 -ac 2 -f s16le -i pipe: -filter:a "volume=10dB" -ac 1 -ar 48000 -f wav pipe: | csdr convert_s16_f | csdr gain_ff 3000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 10000
+#./testnfm.sh #ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i TransmittersSink.monitor -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 10000
 
 
+#./testnfm.sh #ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i TransmittersSink.monitor -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 1600
 #./testnfm.sh #parec -d TransmittersSink.monitor | ffmpeg -use_wallclock_as_timestamps 1 -ac 2 -f s16le -i pipe: -filter:a "volume=10dB" -ac 1 -ar 48000 -f wav pipe: | csdr convert_s16_f | csdr gain_ff 10000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f 1600
 #./testam.sh #parec -d TransmittersSink.monitor | ffmpeg -use_wallclock_as_timestamps 1 -ac 2 -f s16le -i pipe: -filter:a "volume=10dB" -ac 1 -ar 48000 -f wav pipe: | csdr convert_s16_f | csdr gain_ff 4.0 | csdr dsb_fc | sudo ./LIBS/rpitx/rpitx -i - -m IQFLOAT -f 1600 -s 48000
+
+
+##################
+#
+# !!! WARNING !!! - RaspberryPi's WiFi connection is interfered with AM transmission -> use connection over Ethernet cable !!! (Use cable connection from Switch not from Wifi device!)
+#
+##################

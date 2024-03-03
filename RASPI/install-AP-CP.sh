@@ -67,6 +67,11 @@ echo ""
 
 
 
+# enable auto-login for user context
+#https://raspberrypi.stackexchange.com/questions/135455/enable-console-auto-login-via-commandline-ansible-script
+sudo raspi-config nonint do_boot_behaviour B2
+
+
 
 ### INSTALL ALL FIRST
 #sudo bash -c 'apt update -y && apt full-upgrade -y && reboot'
@@ -339,6 +344,13 @@ AP_PASSWORD="\${AP_PASSWORD}"
 
 DEVICE_NAME="\${DEVICE_NAME}"
 ENDOFFILE
+
+
+
+# Turn off WiFi power saving mode
+#sudo iw wlan0 set power_save off
+# iw wlan0 get power_save
+#https://raspberrypi.stackexchange.com/questions/96606/make-iw-wlan0-set-power-save-off-permanent
 
 
 
