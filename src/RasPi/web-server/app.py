@@ -14,9 +14,7 @@ conf_file = "device.conf"
 @app.route('/')
 def index():
     ## Disable IPtoSPEECH
-    if raspi_disablevoiceip() == "IP to Speech is now: OFF (was ON)":
-        # and if IPtoSPEECH was enabled -> set default audio sink to TransmittersSink
-        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink TransmittersSink")
+    raspi_disablevoiceip()
     
 
     #nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2
@@ -806,7 +804,7 @@ def main():
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd load-module module-null-sink sink_name=TransmittersSink")
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-sink-proplist TransmittersSink device.description=TransmittersSink")
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-source-proplist TransmittersSink.monitor device.description='Monitor of TransmittersSink'")
-        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink 0")
+        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink TransmittersSink")
 
 
 
