@@ -71,7 +71,7 @@ class Agent(dbus.service.Object):
     def Cancel(self):
         print("Cancel")
 
-def quit(manager, mloop):      
+def quit(manager, mloop):
     manager.UnregisterAgent(AGENT_PATH)
     print("\nAgent unregistered")
     

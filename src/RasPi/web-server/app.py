@@ -12,7 +12,14 @@ wifi_device = "wlan0"
 conf_file = "device.conf"
 
 @app.route('/')
-def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2
+def index():
+    ## Disable IPtoSPEECH
+    if raspi_disablevoiceip() == "IP to Speech is now: OFF (was ON)":
+        # and if IPtoSPEECH was enabled -> set default audio sink to TransmittersSink
+        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink TransmittersSink")
+    
+
+    #nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2
     result = subprocess.check_output(["nmcli", "--colors", "no", "-m", "multiline", "--get-value", "SSID", "dev", "wifi", "list", "ifname", wifi_device])
     ssids_list = result.decode().split('\n')
     dropdowndisplay = f"""
@@ -130,7 +137,7 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
         #dropdowndisplay += repr(sink)+"<br>"
         dropdowndisplay +=f"""
   		<tr>
-            <td><input type="radio" name="default" {sink[2]} disabled></td>
+            <td><input type="radio" name="default" {sink[2]}></td>
             <td>{sink[0]}</td>
             <td>{sink[4]}</td>
             <td>{sink[1]}</td>
@@ -207,7 +214,7 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     for sink in device_sinks:
         source_select += f'<option value="{sink[0]}">[{sink[0]}] {sink[4]}</option>'
     dropdowndisplay +=f"""<h2>Transmitters</h2>
-    <pre>!!! WARNING !!! - RaspberryPi's WiFi connection is interfered with AM transmission -> use connection over Ethernet cable !!! (Use cable connection from Switch not from Wifi device!)</pre>
+    <pre>!!! WARNING !!! - RaspberryPi's WiFi connection is interfered with AM transmission -> use connection over Ethernet cable !!! (Use cable connection from Switch rather then from Wifi device!)</pre>
     <table border=1>
         <tr>
             <th>LIVE</th>
@@ -266,7 +273,7 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     <a href="./transAM1600">Play AM (1.6 MHz)</a>
     <br>
     <a href="./transStop">Stop</a>
-    
+    <br><br><pre>WARNING: FM radio, DAB radio and Bluetooth are not working while transmitting from RaspberryPi using SDR!!! (there is probably interference)</pre>
     
     """
     
@@ -280,7 +287,7 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
     
     dropdowndisplay +="""
     <br><br><br><br><br><br>
-    <h2>Settings</h2>
+    <h2>Settings</h2>Note: reload page after boot-up
     <h3>Network state</h3>
     """
     result = subprocess.check_output("hostname -I", shell=True)
@@ -348,7 +355,7 @@ def index():#nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d
         <input type="submit" value="Save">
     </form>
     <h3>IPtoSpeech</h3>
-    <a href="./togglevoiceip">Toggle IP to Speech</a>
+    <a href="./disablevoiceip">Disable IP to Speech</a>
     <h3>System</h3>
         <a href="./reboot">Reboot</a><br>
     <a href="./shutdown">Shutdown</a>
@@ -472,6 +479,7 @@ def raspi_playFM():
             AUDIOplayingProcess = None
     
     if AUDIOplayingProcess == None:
+        #rtl_fm -f 107e6 -s 200000 -r 48000 | aplay -r 48000 -f S16_LE -t raw -c 2
         play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 rtl_fm -f 107e6 -s 200000 -r 48000 | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
         AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
         return 'Started Playing...'
@@ -488,7 +496,10 @@ def raspi_playDAB():
             AUDIOplayingProcess = None
     
     if AUDIOplayingProcess == None:
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 8A -P 'DAB' -D 60 -d 60 | ffmpeg -loglevel error -i pipe: -c:a pcm_s16le -f s16le pipe: | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
+        #dab-rtlsdr-4 -C 12D -P 'CRo' -D 60 -d 60 | aplay -r 48000 -f S16_LE -t raw -c 2
+        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 12D -P 'CRo' -D 60 -d 60 | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
+        #play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 8A -P 'DAB' -D 60 -d 60 | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
+        #play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 8A -P 'DAB' -D 60 -d 60 | ffmpeg -loglevel error -i pipe: -c:a pcm_s16le -f s16le pipe: | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
         AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
         return 'Started Playing...'
     return 'Still playing!'
@@ -745,27 +756,26 @@ def submit():
         
     return "New settings saved OK!<br>Reboot needed!<br><a href='./reboot'>Reboot now</a>"
 
-@app.route('/togglevoiceip')
-def raspi_togglevoiceip():
+@app.route('/disablevoiceip')
+def raspi_disablevoiceip():
     os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
-    iptospeech = False
+    iptospeechwas = False
     new_content = ""
     with open(conf_file, "r+") as file:
         for line in file:
             line = line.strip()
             if line.startswith("IPtoSPEECH"):
+                new_content += 'IPtoSPEECH=false\n'
                 if line == "IPtoSPEECH=true":
-                    new_content += 'IPtoSPEECH=false\n'
-                else:
-                    new_content += 'IPtoSPEECH=true\n'
-                    iptospeech = True
+                    iptospeechwas = True
             else:
                 new_content += line+'\n'
-        file.seek(0,0)
-        file.write(new_content)
-        file.truncate()
-    return 'IP to Speech is now: '+str('ON' if iptospeech else 'OFF')
-
+        if iptospeechwas:
+            file.seek(0,0)
+            file.write(new_content)
+            file.truncate()
+    return 'IP to Speech is now: OFF (was '+str('ON' if iptospeechwas else 'OFF')+')'
+    
 @app.route('/reboot')
 def raspi_reboot():
     os.system("sudo reboot")
@@ -796,7 +806,7 @@ def main():
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd load-module module-null-sink sink_name=TransmittersSink")
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-sink-proplist TransmittersSink device.description=TransmittersSink")
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-source-proplist TransmittersSink.monitor device.description='Monitor of TransmittersSink'")
-        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink TransmittersSink")
+        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink 0")
 
 
 
