@@ -106,7 +106,7 @@ sudo mkdir /var/lib/dnsmasq && sudo touch /var/lib/dnsmasq/dnsmasq.leases
 # change DNSMASQ config
 echo "Editting file /etc/dnsmasq.conf_ap:";
 sudo tee /etc/dnsmasq.conf_ap <<EOF
-interface=wlan0
+interface=wlan0,eth0
 
 # set the IP address, where dnsmasq will listen on. 
 listen-address=127.0.0.1,192.168.11.1
@@ -347,6 +347,12 @@ ENDOFFILE
 
 
 
+# set-up ethernet connection
+sudo nmcli connection delete Wired\ connection\ 1
+sudo nmcli connection add type ethernet ifname eth0 con-name Wired\ connection\ 1
+
+
+
 # Turn off WiFi power saving mode
 #sudo iw wlan0 set power_save off
 # iw wlan0 get power_save
@@ -364,6 +370,7 @@ while true; do
         if [ \$attempts -lt 7 ]; then # 60 seconds
             attempts=\$((attempts+1))
         elif [ \$attempts -eq 7 ]; then
+			## Set-up Hotspot
             sudo nmcli connection down Hotspot
             #set up dnsmasq
             sudo \cp -f /etc/dnsmasq.conf_ap /etc/dnsmasq.conf # AP config
@@ -372,7 +379,10 @@ while true; do
             # set up AP
             sudo nmcli connection up Hotspot
             
-            attempts=8
+            ## Set-up ethernet connection
+            sudo nmcli connection modify Wired\ connection\ 1 ipv4.method manual ipv4.addresses 192.168.11.1/24 ipv4.gateway 192.168.11.1
+			
+			attempts=8
         fi
     else
         echo "I have network: $(date)"
