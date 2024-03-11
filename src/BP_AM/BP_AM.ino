@@ -16,15 +16,20 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
+//https://github.com/etherkit/Si5351Arduino
 #include "si5351.h"
 #include "Wire.h"
 
 Si5351 si5351;
 
+#define RELAYPIN 3
+
 void setup()
 {
-  bool i2c_found;
+  pinMode(RELAYPIN, OUTPUT);
+  digitalWrite(RELAYPIN, LOW);
+  
+  bool i2c_found; // UNO SDA/A4  SCL/A5
 
   // Start serial and initialize the Si5351
   Serial.begin(9600);
@@ -34,8 +39,8 @@ void setup()
     Serial.println("Device not found on I2C bus!");
   }
 
-  // Set CLK0 to output 1 MHz
-  si5351.set_freq(100000000ULL, SI5351_CLK0);
+  // Set CLK0 to output 10 MHz
+  si5351.set_freq(1000000000ULL, SI5351_CLK0);
   si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA);
   si5351.output_enable(SI5351_CLK0, 1);
 
@@ -52,6 +57,7 @@ void setup()
 void loop()
 {
   // Read the Status Register and print it every 10 seconds
+  // cca SYS_INIT: 0  LOL_A: 0  LOL_B: 0  LOS: 0  REVID: 3
   si5351.update_status();
   Serial.print("SYS_INIT: ");
   Serial.print(si5351.dev_status.SYS_INIT);
