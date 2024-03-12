@@ -8,6 +8,10 @@ import time
 
 app = Flask(__name__)
 
+def list_join_span(array, separator, span):
+    # https://stackoverflow.com/questions/1621906/is-there-a-way-to-split-a-string-by-every-nth-separator-in-python
+    return [separator.join(array[i:i+span]) for i in range(0, len(array), span)]
+
 wifi_device = "wlan0"
 conf_file = "device.conf"
 
@@ -56,7 +60,7 @@ def index():
 
 
 
-    <h1>HistoR</h1><hr>
+    <h1>HistoRPi - audio streaming device for historic radios</h1><hr>
 
 
     <h2>AudioOutputs</h2>
@@ -85,7 +89,7 @@ def index():
         default_sink = result.decode().strip().removeprefix("Default Sink: ")
         #dropdowndisplay += "Default sink: "+repr(default_sink)+"<br>"
     except subprocess.CalledProcessError as e:
-        dropdowndisplay +="command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output)
+        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
     
     device_sinks = []
     try:
@@ -127,7 +131,7 @@ def index():
         #dropdowndisplay += repr(device_sinks)+"<br>"
         
     except subprocess.CalledProcessError as e:
-        dropdowndisplay +="command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output)
+        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
     
     
     
@@ -272,66 +276,85 @@ def index():
     <br>
     <a href="./transStop">Stop</a>
     <br><br><pre>WARNING: FM radio, DAB radio and Bluetooth are not working while transmitting from RaspberryPi using SDR!!! (there is probably interference)</pre>
-    
-    """
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    dropdowndisplay +="""
     <br><br><br><br><br><br>
-    <h2>Settings</h2>Note: reload page after boot-up
-    <h3>Network state</h3>
     """
-    result = subprocess.check_output("hostname -I", shell=True)
-    dropdowndisplay += "IP addresses: "+str(result.decode().strip())+"<br>Devices:<br>"
     
     
-    result = subprocess.check_output(["nmcli", "--colors", "no", "-m", "multiline", "device"])
-    cell_list = result.decode().split('\n')
-    span = 4 # https://stackoverflow.com/questions/1621906/is-there-a-way-to-split-a-string-by-every-nth-separator-in-python
-    connections_list = ["\n".join(cell_list[i:i+span]) for i in range(0, len(cell_list), span)]
-    
-    #output_string = [ ';'.join(x) for x in zip(ssids_list[0::2], ssids_list[1::2]) ]
-    for device in connections_list:
-        device = device.replace(" ", "")
-        device = device.split('\n')
-        if len(device) == 4 and device[2] == "STATE:connected":
-            #dropdowndisplay += repr(connection)+ " - <a href='#delete'>delete connection</a><br>"
-            dropdowndisplay += repr(device)+ "<br>"
     
     
+    
+    
+    
+    
+    #
+    # SETTINGS
+    ##########################
+    dropdowndisplay += """
+    <h2>Settings</h2>
+    <h3>Network state</h3>
+    IP addresses: 
+    """
+    try:
+        result = subprocess.check_output("hostname -I", shell=True)
+        dropdowndisplay += "<strong>"+str(', '.join(result.decode().strip().split(' ')))+"</strong>"
+    except subprocess.CalledProcessError as e:
+        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
+    
+    dropdowndisplay += "<br>Devices:<br>"
+    try:
+        result = subprocess.check_output("nmcli --colors no -m multiline connection show --active", shell=True)
+        cells_list = result.decode().strip().split("\n")
+        connections_list = list_join_span(cells_list, "\n", 4)
+        
+        dropdowndisplay += "<table border='1'><tr><th>DEVICE</th><th>TYPE</th><th>UUID</th><th>NAME</th></tr>"
+        for device in connections_list:
+            dropdowndisplay += "<tr>"
+            device_cells = device.split('\n')
+            device_cells.reverse()
+            if len(device_cells) == 4:
+                for device_cell in device_cells:
+                    dropdowndisplay += "<td>"+device_cell.split(":",1)[1].strip()+ "</td>"
+            dropdowndisplay += "</tr>"
+        dropdowndisplay += "</table>"
+    except subprocess.CalledProcessError as e:
+        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
+
+
 
     dropdowndisplay += """
-    <h3>WiFi saved connections</h3>"""
+    <h3>WiFi saved connections</h3>
+    """
+    try:
+        result = subprocess.check_output("nmcli --colors no -m multiline connection show", shell=True)
+        cells_list = result.decode().strip().split("\n")
+        connections_list = list_join_span(cells_list, "\n", 4)
+        
+        dropdowndisplay += "<table border='1'><tr><th>NAME</th><th>UUID</th><th>TYPE</th><th>DEVICE</th><th>X</th></tr>"
+        for connection in connections_list:
+            dropdowndisplay += "<tr>"
+            connection_cells = connection.split('\n')
+            if len(connection_cells) == 4 and connection_cells[0].replace(" ", "") != "NAME:Hotspot" and connection_cells[2].replace(" ", "") == "TYPE:wifi":
+                for connection_cell in connection_cells:
+                    dropdowndisplay += "<td>"+connection_cell.split(":",1)[1].strip()+ "</td>"
+                dropdowndisplay += "<td><a href='/removewifi/"+connection_cells[1].split(":",1)[1].strip()+"/ssid/"+connection_cells[0].split(":",1)[1].strip()+"'>delete connection</a></td>"
+            dropdowndisplay += "</tr>"
+        dropdowndisplay += "</table>"
+                
+    except subprocess.CalledProcessError as e:
+        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
+
+    try:
+        result = subprocess.check_output("nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2", shell=True)
+        dropdowndisplay += """
+        <br>Connected to WiFi: <strong>"""+str(result.decode().strip())+"""</strong><br>
+        """
+    except subprocess.CalledProcessError as e:
+        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
+
+    dropdowndisplay += """
+    <a href="./disconnect">Delete current WiFi connection & Reboot</a>
+    """
     
-    result = subprocess.check_output(["nmcli", "--colors", "no", "-m", "multiline", "connection", "show"])
-    cell_list = result.decode().split('\n')
-    span = 4 # https://stackoverflow.com/questions/1621906/is-there-a-way-to-split-a-string-by-every-nth-separator-in-python
-    connections_list = ["\n".join(cell_list[i:i+span]) for i in range(0, len(cell_list), span)]
-    
-    #output_string = [ ';'.join(x) for x in zip(ssids_list[0::2], ssids_list[1::2]) ]
-    for connection in connections_list:
-        connection = connection.replace(" ", "")
-        connection = connection.split('\n')
-        if len(connection) == 4 and connection[0] != "NAME:Hotspot" and connection[2] == "TYPE:wifi":
-            dropdowndisplay += repr(connection)+ " - <a href='#delete'>delete connection</a><br>"
-            
-    
-    result = subprocess.check_output("nmcli --colors no device wifi show-password | grep 'SSID:' | cut -d ':' -f 2", shell=True)
-    dropdowndisplay += "<br>Connected to WiFi: "+str(result.decode().strip())+"<br>"
-    
-    dropdowndisplay +="""<a href="./disconnect">Delete current WiFi connection + Reboot</a>
-    <h3>WiFi to connect on next boot-up</h3>"""
-    ## nmcli --colors no connection show --active
-    ## TODO onsubmit - send form
-    ## - fill wifi and password input with current value
-    ## - 
     
     
     saved_SSID = ""
@@ -345,36 +368,81 @@ def index():
             elif line.startswith("WIFI_PASSWORD"):
                 saved_PASS = line.removeprefix("WIFI_PASSWORD=\"").removesuffix("\"")
 
-
-            
-    dropdowndisplay += """<form action="/submit" method="post">
-        <label for="ssid">WiFi network: <input type="text" name="ssid" value=\""""+ saved_SSID +""""/></label>
+    dropdowndisplay += """
+    <h3>WiFi to connect on next boot-up</h3>
+    <form action="/savewifi" method="post">
+        <label for="ssid">SSID: <input type="text" name="ssid" value=\""""+ saved_SSID +""""/></label>
         <label for="password">Password: <input type="text" name="password" value=\""""+ saved_PASS +""""/></label>
         <input type="submit" value="Save">
+        <p></p>
     </form>
+    
+    
+    
     <h3>IPtoSpeech</h3>
-    <a href="./disablevoiceip">Disable IP to Speech</a>
+    <a href="./disablevoiceip">Disable IPtoSpeech</a>
+    <pre>Note: IPtoSpeech is automatically disabled when this page is loaded after boot-up</pre>
+    
+    
+    
     <h3>System</h3>
-        <a href="./reboot">Reboot</a><br>
+    <a href="./reboot">Reboot</a><br>
     <a href="./shutdown">Shutdown</a>
+    
+    
     <script>
-    // Get the parent DIV, add click listener...
-            document.body.addEventListener("click", function(e) {
-                // e.target was the clicked element
-                if(e.target && e.target.nodeName == "A") {
-                    e.preventDefault();
-                    //alert(e.target.href.split("/")[3]);
-                    runcmd(e.target.href);
-                }
-            });
-            // TODO onsubmit send form
-            async function runcmd(cmd) {
-                  const response = await fetch(cmd);
-                  const ret = await response.text();
-                  alert(ret);
+        document.body.addEventListener("submit", function(e) {
+            
+            httpPOST(e.target.action, new FormData(e.target));
+            
+            e.preventDefault();
+        });
+        
+        document.body.addEventListener("click", function(e) {
+            if(e.target && e.target.nodeName == "A") {
+            
+                httpGET(e.target.href);
+                
+                e.preventDefault();
             }
-
-        </script>
+        });
+        
+        async function httpGET(url) {
+            document.body.style.cursor = 'wait';
+            try {
+                const response = await fetch(url);
+                const result = await response.text();
+                
+                console.log("Success: " + result);
+                alert(result);
+            } catch (error) {
+                console.error("Error: " + error + '\\nIf rebooting or shutting down: Success!');
+                alert("Error: " + error + '\\nIf rebooting or shutting down: Success!');
+            }
+            document.body.style.cursor = 'auto';
+        }
+        
+        async function httpPOST(action, data) {
+            document.body.style.cursor = 'wait';
+            try {
+                const response = await fetch(action, {
+                    method: "POST",
+                    body: data
+                });
+                const result = await response.text();
+                
+                console.log("Success: " + result);
+                alert(result);
+            } catch (error) {
+                console.error("Error: " + error);
+                alert("Error: " + error);
+            }
+            document.body.style.cursor = 'auto';
+        }
+        
+    </script>
+    
+    
         <style>
 /* source: https://jsfiddle.net/zAFND/4/   */
 div label input {
@@ -418,7 +486,7 @@ body {
     color:#fff;
 }
 </style>
-        """
+    """
     return dropdowndisplay
 
 
@@ -718,6 +786,13 @@ def raspi_transStop():
 # SETTINGS
 ##########################
 
+@app.route('/removewifi/<uuid>/ssid/<ssid>', strict_slashes=True)
+def raspi_removewifi(uuid="", ssid=""):
+    if os.system("sudo nmcli connection delete "+str(uuid)) == 0:
+        return 'WIFI connection "'+ssid+'" deleted!\nReload page to see changes.'
+    else:
+        return 'ERROR while deleting WIFI connection: '+ssid+' ('+uuid+')'
+
 @app.route('/disconnect')
 def raspi_disconnect():
     try:
@@ -729,8 +804,8 @@ def raspi_disconnect():
         return "ERROR:\n" + repr(e.output)
     return 'Current WIFI connection deleted!'
 
-@app.route('/submit',methods=['POST'])
-def submit():
+@app.route('/savewifi', methods=['POST'])
+def raspi_savewifi():
     if request.method == 'POST':
         print(*list(request.form.keys()), sep = ", ")
         ssid = request.form['ssid']
@@ -752,7 +827,7 @@ def submit():
             file.write(new_content)
             file.truncate()
         
-    return "New settings saved OK!<br>Reboot needed!<br><a href='./reboot'>Reboot now</a>"
+    return "New settings saved successfully!\nReboot to apply."
 
 @app.route('/disablevoiceip')
 def raspi_disablevoiceip():
@@ -776,12 +851,18 @@ def raspi_disablevoiceip():
     
 @app.route('/reboot')
 def raspi_reboot():
-    os.system("sudo reboot")
+    try:
+        os.system("sudo reboot")
+    except:
+        return 'ERROR while rebooting!'
     return 'Reboot!'
 
 @app.route('/shutdown')
 def raspi_shutdown():
-    os.system("sudo shutdown now")
+    try:
+        os.system("sudo shutdown now")
+    except:
+        return 'ERROR while shuting down!'
     return 'Shutdown!'
 
 
