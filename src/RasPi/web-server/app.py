@@ -3,6 +3,7 @@ import subprocess
 from threading import Thread
 import os
 import time
+from pathlib import Path
 # user repr() as var_dump()
 
 
@@ -58,10 +59,10 @@ def web_config_get_value(key):
 
 def read_web_config():
     os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+    
+    settings_vars = ["TS_live", "TS_trans", "TS_desc-8ch", "TS_desc-long", "TS_freq", "TS_source", "TS_autoplay", "AU_default"]
 
-    settings_vars = ["TS_live", "TS_trans", "TS_desc-8ch", "TS_desc-long", "TS_freq", "TS_source", "TS_autoplay"]
-
-    file_items = {}
+    file_items = {key: '' for key in settings_vars}
     with open(web_file, "r+") as file:
         for line in file:
             line = line.strip()
@@ -87,6 +88,7 @@ def check_autoplay():
             return raspi_transFM(web_config_get_value("TS_source"), web_config_get_value("TS_freq"), web_config_get_value("TS_desc-8ch"), web_config_get_value("TS_desc-long"))
         elif transmitter == "AM":
             return raspi_transAM(web_config_get_value("TS_source"), web_config_get_value("TS_freq"))
+    # TODO check audio outputs autoplays
 
 
 @app.route('/')
@@ -137,7 +139,6 @@ def index():
     try:
         result = subprocess.check_output("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl info | grep --color=never 'Default Sink: '", shell=True)
         default_sink = result.decode().strip().removeprefix("Default Sink: ")
-        #dropdowndisplay += "Default sink: "+repr(default_sink)+"<br>"
     except subprocess.CalledProcessError as e:
         dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
 
@@ -147,117 +148,127 @@ def index():
         result = result.decode().strip()
         result = result.split('\n')
         curr_sink = 0
-        device_sink = []
+        
+        sink_vars = ["id", "uuid", "default", "name", "state", "volume"]
+        device_sink = {key: '' for key in sink_vars}
         for i, line in enumerate(result):
-            #device_descs.append(desc.strip().removeprefix("Description: "))
             if line.startswith('Sink #'):
                 if curr_sink != int(line.removeprefix('Sink #')):
                     device_sinks.append(device_sink.copy())
                     device_sink.clear()
-                    curr_sink+=1
-                device_sink.append(line.removeprefix('Sink #'))
+                    device_sink = {key: '' for key in sink_vars}
+                    curr_sink += 1
+                device_sink["id"] = line.removeprefix('Sink #')
             else:
                 line = line.strip()
                 if line.startswith('State: '):
                     line = line.removeprefix('State: ')
+                    device_sink["state"] = line
                 elif line.startswith('Name: '):
                     line = line.removeprefix('Name: ')
                     if line == default_sink:
-                        device_sink.append('checked')
-                    else:
-                        device_sink.append('')
+                        device_sink["default"] = 'checked'
+                    device_sink["uuid"] = line
                 elif line.startswith('Description: '):
                     line = line.removeprefix('Description: ')
+                    device_sink["name"] = line
                 elif line.startswith('Volume: '):
                     line = line.split('/')
                     if len(line) > 1:
                         line = line[1].strip().removesuffix('%')
                     else:
                         line = '(unknown)'
-                device_sink.append(line)
-            #dropdowndisplay += repr(line)+"<br>"
+                    device_sink["volume"] = line
         device_sinks.append(device_sink.copy())
-
-        #dropdowndisplay += repr(device_sinks)+"<br>"
 
     except subprocess.CalledProcessError as e:
         dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
 
 
-
     for sink in device_sinks:
-        #dropdowndisplay += repr(sink)+"<br>"
-        dropdowndisplay +=f"""
-  		<tr>
-            <td><input type="radio" name="default" {sink[2]}></td>
-            <td>{sink[0]}</td>
-            <td>{sink[4]}</td>
-            <td>{sink[1]}</td>
-            <td><input type="number" name="tentacles" min="1" max="120" value="{sink[5]}" size="5">%</td>
+    
+        os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+        os.chdir("audio_config")
+        
+        sink_config = {"AU_sink": sink["uuid"], "AU_volume": sink["volume"], "AU_source": 'SD', "AU_playing": '0', "AU_autoplay": '0', "AU_controls-SD-track": 'No track', "AU_controls-SD-repeat": '1', "AU_controls-SD-shuffle": '1', "AU_controls-URL-url": '', "AU_controls-FM-freq": '', "AU_controls-BT-name": '', "AU_controls-DAB-channel": '', "AU_controls-DAB-station": ''}
+
+        with open(sink["uuid"]+'.conf', "r+") as file:
+            for line in file:
+                line = line.strip()
+                item = line.split('=',1)
+                if len(item) == 2:
+                    sink_config[item[0]] = item[1]
+    
+    
+        dropdowndisplay += f"""
+  		<tr><input type="hidden" name="AU_sink[{sink["id"]}]" value="{sink["uuid"]}">
+            <td><input type="radio" name="AU_default" value="{sink["uuid"]}" {sink["default"]}></td>
+            <td>{sink["id"]}</td>
+            <td>{sink["name"]}</td>
+            <td>{sink["state"]}</td>
+            <td><input type="number" name="AU_volume[{sink["id"]}]" min="1" max="120" value="{sink["volume"]}" size="5">%</td>
             <td>
-                <select class="cls-controls" name="sink-{sink[0]}-source" onchange="change_controls(this.name, {sink[0]}, this.value)">
-                    <option value="SD">SDcard player</option>
-                    <option value="URL">URL player</option>
-                    <option value="FM">FM radio</option>
-                    <option value="BT">Bluetooth</option>
-                    <option value="DAB">DAB radio</option>
+                <select class="cls-controls" name="AU_source[{sink["id"]}]" onchange="change_controls({sink["id"]}, this.value)">
+                    <option value="SD" {'selected' if sink_config["AU_source"] == "SD" else ''}>SDcard player</option>
+                    <option value="URL" {'selected' if sink_config["AU_source"] == "URL" else ''}>URL player</option>
+                    <option value="FM" {'selected' if sink_config["AU_source"] == "FM" else ''}>FM radio</option>
+                    <option value="BT" {'selected' if sink_config["AU_source"] == "BT" else ''}>Bluetooth</option>
+                    <option value="DAB" {'selected' if sink_config["AU_source"] == "DAB" else ''}>DAB radio</option>
                 </select>
             </td>
-            <td><input type="checkbox" checked disabled></td>
-            <td><input type="checkbox" checked></td>
-            <td id="controls-{sink[0]}"></td>
+            <td><input type="checkbox" {'checked' if sink["state"] == "RUNNING" else ''} disabled></td>
+            <td><input type="hidden" name="AU_autoplay[{sink["id"]}]" value="{sink_config["AU_autoplay"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if sink_config["AU_autoplay"] == "1" else ''}></td>
+            <td id="controls-{sink["id"]}">
+            
+                <span class="controls-{sink["id"]}-SD">
+                    <!---<input type="hidden" name="AU_controls-SD-track[{sink["id"]}]" value="{sink_config["AU_controls-SD-track"]}">--->
+                    <input type="text" value="{sink_config["AU_controls-SD-track"]}" disabled> - 
+                    <input type="submit" value="<" title="previous">
+                    <input type="submit" value="II" title="pause">
+                    <input type="submit" value="|>" title="play">
+                    <input type="submit" value="O" title="stop">
+                    <input type="submit" value=">" title="next"> -
+                    repeat: <input type="hidden" name="AU_controls-SD-repeat[{sink["id"]}]" value="{sink_config["AU_controls-SD-repeat"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if sink_config["AU_controls-SD-repeat"] == "1" else ''}>
+                    shuffle: <input type="hidden" name="AU_controls-SD-shuffle[{sink["id"]}]" value="{sink_config["AU_controls-SD-shuffle"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if sink_config["AU_controls-SD-shuffle"] == "1" else ''}>
+                    - <a href="#select">select track</a>
+                </span>
+                
+                <span class="controls-{sink["id"]}-URL" style="display:none">    
+                    <input type="text" name="AU_controls-URL-url[{sink["id"]}]" value="{sink_config["AU_controls-URL-url"]}" placeholder="URL" title="URL">
+                    <input type="submit" value="|>" title="play">
+                    <input type="submit" value="O" title="stop">
+                    <!--- maybe TODO: URL list; --->
+                </span>
+                    
+                <span class="controls-{sink["id"]}-FM" style="display:none">
+                    <input type="number" name="AU_controls-FM-freq[{sink["id"]}]" value="{sink_config["AU_controls-FM-freq"]}" placeholder="FREQ" title="FREQ">
+                    <input type="submit" value="|>" title="play">
+                    <input type="submit" value="O" title="stop">
+                </span>
+                    
+                <span class="controls-{sink["id"]}-BT" style="display:none">
+                    <input type="text" name="AU_controls-BT-name[{sink["id"]}]" value="{sink_config["AU_controls-BT-name"]}" placeholder="BT NAME" title="BT NAME">
+                    <input type="submit" value="ON" title="play">
+                    <input type="submit" value="OFF" title="stop">
+                </span>
+                
+                <span class="controls-{sink["id"]}-DAB" style="display:none">
+                    <input type="text" name="AU_controls-DAB-channel[{sink["id"]}]" value="{sink_config["AU_controls-DAB-channel"]}" placeholder="CHANNEL" title="CHANNEL">
+                    <input type="text" name="AU_controls-DAB-station[{sink["id"]}]" value="{sink_config["AU_controls-DAB-station"]}" placeholder="STATION" title="STATION">
+                    <input type="submit" value="|>" title="play">
+                    <input type="submit" name="TEST" value="O" title="stop">
+                </span>
+            
+            </td>
         </tr>
     """
 
+    ###<input type="hidden" name="TS_autoplay" value="{web_config["TS_autoplay"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if web_config["TS_autoplay"] == "1" else ''}></td>
+    ###<input type="hidden" name="TS_autoplay" value="{web_config["TS_autoplay"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if web_config["TS_autoplay"] == "1" else ''}></td>
 
     dropdowndisplay += """
     </table>
     </form>
-    <script>
-    window.addEventListener("load", function(event) {
-        var list = document.getElementsByClassName("cls-controls") ;
-        for (let item of list) {
-            item.dispatchEvent(new Event('change'));
-        }
-    });
-
-    function change_controls(name, id, value)
-    {
-        var controls = document.getElementById("controls-"+id)
-        if (value == "SD") {
-            controls.innerHTML = `<input type="submit" value="<" title="previous">
-            <input type="submit" value="II" title="pause">
-            <input type="submit" value="|>" title="play">
-            <input type="submit" value="O" title="stop">
-            <input type="submit" value=">" title="next"> -
-            repeat: <input type="checkbox" checked>
-            shuffle: <input type="checkbox" checked>
-            autoplay: <input type="checkbox" checked>
-            - <a href="#select">select track</a>`
-        } else if (value == "URL") {
-            controls.innerHTML = `<input type="text" value="" placeholder="URL" title="URL">
-            <input type="submit" value="|>" title="play">
-            <input type="submit" value="O" title="stop"><!--- maybe TODO: URL list; --->`
-        } else if (value == "FM") {
-            controls.innerHTML = `<input type="number" value="" placeholder="FREQ" title="FREQ">
-            <input type="submit" value="<" title="tune down">
-            <input type="submit" value="|>" title="play">
-            <input type="submit" value="O" title="stop">
-            <input type="submit" value=">" title="tune up">`
-        } else if (value == "BT") {
-            controls.innerHTML = `<input type="text" value="" placeholder="BT NAME" title="BT NAME">
-            <input type="submit" value="ON" title="play">
-            <input type="submit" value="OFF" title="stop">`
-        } else if (value == "DAB") {
-            controls.innerHTML = `<input type="text" value="" placeholder="CHANNEL" title="CHANNEL">
-            <input type="submit" value="<" title="tune down">
-            <input type="submit" value="|>" title="play">
-            <input type="submit" value="O" title="stop">
-            <input type="submit" value=">" title="tune up">`
-        }
-        console.log(name + ": " + value)
-    }
-    </script>
     """
 
 
@@ -290,7 +301,7 @@ def index():
             <td rowspan="2"><input type="number" name="TS_freq" min="1" max="120" value="{web_config["TS_freq"]}" size="8" /> MHz</td>
             <td rowspan="2" style="text-align: center;">
                 <select name="TS_source">
-                    {''.join(["<option value='"+sink[3]+"' selected>["+sink[0]+"] "+sink[4]+"</option>" if web_config["TS_source"] == sink[3] else "<option value='"+sink[3]+"'>["+sink[0]+"] "+sink[4]+"</option>" for sink in device_sinks])}
+                    {''.join(["<option value='"+sink["uuid"]+"' selected>["+sink["id"]+"] "+sink["name"]+"</option>" if web_config["TS_source"] == sink["uuid"] else "<option value='"+sink["uuid"]+"'>["+sink["id"]+"] "+sink["name"]+"</option>" for sink in device_sinks])}
                 </select>
             </td>
             <td rowspan="2" style="text-align: center;">
@@ -441,6 +452,29 @@ def index():
 
 
     <script>
+        // automatically change audio source controls onload
+        window.addEventListener("load", function(event) {
+            var list = document.getElementsByClassName("cls-controls") ;
+            for (let item of list) {
+                item.dispatchEvent(new Event('change'));
+            }
+        });
+
+        function change_controls(id, value)
+        {
+            var controls = document.getElementById("controls-"+id)
+            
+            for(i = 0; i < controls.children.length; i++) {
+                if (controls.children[i].className == "controls-"+id+"-"+value) {
+                    controls.children[i].style.display = '';
+                } else {
+                    controls.children[i].style.display = 'none';
+                }
+            }
+        }
+        
+        
+        
         document.body.addEventListener("change", function(e) {
             if (e.target.form != null && e.target.form.id != null) {
                 if (e.target.form.id == "Transmitters" || e.target.form.id == "AudioOutputs") {
@@ -462,6 +496,10 @@ def index():
             if (e.target != null && e.target.id != null) {
                 if (e.target.id == "SaveWifi") {
                     httpPOST(e.target.action, new FormData(e.target));
+                } else if (e.target.id == "AudioOutputs") {
+                    // TODO javascript check buttons click
+                    alert("BUTTON:"+e.submitter.name);
+                    console.log(e.submitter)
                 }
             }
             e.preventDefault();
@@ -568,13 +606,105 @@ def index():
 @app.route('/audiooutputs', methods=['POST'])
 def raspi_audiooutputs():
     if request.method == 'POST':
-        form_keys = list(request.form.keys())
-        form_values = list(request.form.values())
-        for i, value in enumerate(form_values):
-            if (value == ""):
-                return 'ERROR: wrong value in input: '+form_keys[i]
-        return repr(form_keys)+repr(form_values)
+        audio_conf = dict(zip(list(request.form.keys()), list(request.form.values())))
+        
+        
+        
+        output = ""
+        
+        
+        
+        ## save AudioOutputs data
+        sinkid = 0
+        while 'AU_sink['+str(sinkid)+']' in list(request.form.keys()):
+            
+            
+            
+            output += ' AU_sink['+str(sinkid)+']; '
+            
+            
+            
+            os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+            os.chdir("audio_config")
 
+            new_content = ""
+            file_changed = False
+            with open(audio_conf['AU_sink['+str(sinkid)+']']+'.conf', "a+") as file:
+                pass
+            with open(audio_conf['AU_sink['+str(sinkid)+']']+'.conf', "r+") as file:
+                for item in list(request.form.keys()):
+                    if item.endswith('['+str(sinkid)+']'):
+                        # add new line
+                        new_content += item.removesuffix('['+str(sinkid)+']')+'='+audio_conf[item]+'\n'
+                        
+                        # find same line
+                        file.seek(0,0)
+                        if not item.removesuffix('['+str(sinkid)+']')+'='+audio_conf[item]+'\n' in file.readlines():
+                            file_changed = True
+                            ## item changed! -> do action
+                            
+                            # change volume
+                            if item.startswith('AU_volume'):
+                                os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-volume "+audio_conf['AU_sink['+str(sinkid)+']']+" "+audio_conf['AU_volume['+str(sinkid)+']']+"%")
+                            
+                            
+                            
+                
+                if file_changed: # don't override when file has not changed
+                    file.seek(0,0)
+                    file.write(new_content)
+                    file.truncate()
+                
+                
+                
+                output += repr(file_changed)
+            
+            
+            
+            sinkid += 1
+        
+        
+
+        ## check default sink changed and save to web config
+        os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+        
+        sink_conf_exists = False
+        sink_conf_changed = False
+        new_content = ""
+        with open(web_file, "a+") as file:
+            pass
+        with open(web_file, "r+") as file:
+            file.seek(0,0)
+            for line in file:
+                line = line.strip()
+
+                if line.startswith("AU_default"):
+                    sink_conf_exists = True
+                    new_content += "AU_default="+audio_conf['AU_default']+'\n'
+                    
+                    if line != "AU_default="+audio_conf['AU_default']:
+                        # default sink changed
+                        sink_conf_changed = True
+
+                else:
+                    new_content += line+'\n'
+
+
+            if not sink_conf_exists:
+                new_content += "AU_default="+audio_conf['AU_default']+'\n'
+                sink_conf_changed = True
+            
+
+            if sink_conf_changed:
+                # change defualt sink
+                os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink "+audio_conf['AU_default'])
+
+                file.seek(0,0)
+                file.write(new_content)
+                file.truncate()
+                
+        return ''
+        #return repr(sink_conf_changed)+output + repr(audio_conf)
 
     return 'ERORR: wrong value!'
 
@@ -629,16 +759,15 @@ def raspi_transmitters():
             file.truncate()
         
         # check values
-        form_keys = list(request.form.keys())
-        form_values = list(request.form.values())
+        trans_conf = dict(zip(list(request.form.keys()), list(request.form.values())))
         # transmitters
-        if "TS_live" in form_keys and "TS_trans" in form_keys:
-            if live_value != form_values[0]: # continue only if TS_live value has changed
-                if form_values[0] == "1":
-                    if form_keys[1] == "TS_trans" and form_values[1] == "FM":
-                        return raspi_transFM(form_values[5], form_values[4], form_values[2], form_values[3])
-                    elif form_keys[6] == "TS_trans" and form_values[6] == "AM":
-                        return raspi_transAM(form_values[4], form_values[3])
+        if "TS_live" in trans_conf and "TS_trans" in trans_conf:
+            if live_value != trans_conf["TS_live"]: # continue only if TS_live value has changed
+                if trans_conf["TS_live"] == "1":
+                    if trans_conf["TS_trans"] == "FM":
+                        return raspi_transFM(trans_conf["TS_source"], trans_conf["TS_freq"], trans_conf["TS_desc-8ch"], trans_conf["TS_desc-long"])
+                    elif trans_conf["TS_trans"] == "AM":
+                        return raspi_transAM(trans_conf["TS_source"], trans_conf["TS_freq"])
                 else:
                     return raspi_transStop()
         
@@ -661,6 +790,24 @@ def raspi_transmitters():
 # TESTS
 ##########################
 
+
+@app.route('/procs')
+def raspi_procs():
+    #https://stackoverflow.com/questions/3162096/how-do-you-list-all-child-processes-in-python
+    ps_output = subprocess.run(['ps', '-opid', '--no-headers', '--ppid', str(os.getpid())], stdout=subprocess.PIPE, encoding='utf8')
+    child_process_ids = [int(line) for line in ps_output.stdout.splitlines()]
+    # get subbprocesses: pgrep -P $your_process1_pid
+    # get procces CMD: ps -p 5441 -o args | tail -n 1
+    # ; echo 'proc-title: test'
+    
+    # TODO kill the lowest subprocess
+    #os.system("sudo kill -9 7844")
+    return repr(child_process_ids)
+
+
+
+
+
 AUDIOplayingProcess = None
 
 @app.route('/play')
@@ -676,7 +823,7 @@ def raspi_play():
         #play_command = ["python", "--version"]
         #play_command = ["mplayer", "-ao", "alsa:device=hw=0.0", "./MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3"]
         #AUDIOplayingProcess = subprocess.Popen(play_command, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::TransmittersSink './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3'"
+        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::TransmittersSink './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3' ; echo 'proc-title: test'"
         AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
 
         return 'Started Playing...'
@@ -890,7 +1037,7 @@ def raspi_transFM(sink="TransmittersSink", freq="89.0", desc_short="HistoRPi", d
         ## https://unix.stackexchange.com/questions/457946/pactl-works-in-userspace-not-as-root-on-i3
         ## user id: id -u
         ## user id = 1000
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i "+sink+".monitor -ac 2 -f wav - | sudo ./LIBS/rpitx/pifmrds -ps '"+desc_short+"' -rt '"+desc_long+"' -freq "+freq+" -audio -"
+        play_command = "echo 'transFM' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i "+sink+".monitor -ac 2 -f wav - | sudo ./LIBS/rpitx/pifmrds -ps '"+desc_short+"' -rt '"+desc_long+"' -freq "+freq+" -audio -"
         FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
 
         return 'Started transmitting...'
@@ -914,7 +1061,7 @@ def raspi_transAM(sink="TransmittersSink", freq="1.6"):
         ## https://unix.stackexchange.com/questions/457946/pactl-works-in-userspace-not-as-root-on-i3
         ## user id: id -u
         ## user id = 1000
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i "+sink+".monitor -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f "+freq
+        play_command = "echo 'transAM' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i "+sink+".monitor -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f "+freq
         FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
 
         return 'Started transmitting...'
@@ -1087,7 +1234,11 @@ def main():
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd load-module module-null-sink sink_name=TransmittersSink")
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-sink-proplist TransmittersSink device.description=TransmittersSink")
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-source-proplist TransmittersSink.monitor device.description='Monitor of TransmittersSink'")
-        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink TransmittersSink")
+        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink "+web_config_get_value("AU_default"))
+        
+        ## create config dir
+        os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+        Path("./audio_config/").mkdir(parents=True, exist_ok=True)
         
         ## check autoplays
         check_autoplay()
