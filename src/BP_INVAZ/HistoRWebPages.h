@@ -11,59 +11,34 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
 <title>HistoR - Home Page</title>
 </head>
 <body>
-<h1>HistoR v0.1 - Embedded system for receiving audio streams on a historic radio receiver</h1>
+<h1>HistoR - Embedded system for receiving audio streams on a historic radio receiver</h1>
 <hr>
 <div> 
-    <h2>Music player</h2>
-    <p>Currently playing: <input type="text" id="Mplayer" name="Mplayer" value="" size="100" disabled></p>
-    <form action="./" onsubmit="return false;">
-        <input type="hidden" name="CMD" value="MPSELECT">
-        <input type="hidden" id="CMD2" name="CMD2" value="SAVEPLAY">
-        <input type="radio" id="MP_SDcard" name="MPselected" value="MP_SDcard">
-        <label for="MP_SDcard">SD card</label> - <a href="./SDSELECT">select track</a> -- 
-        <span>
-            <input type="submit" value="< Prev">
-            <input type="submit" value="I> Play/ II Pause">
-            <input type="submit" value="Next >"> --
-            <label for="MP_RANDOM">Random play</label>
-            <input type="checkbox" id="MP_RANDOM" name="MP_RANDOM" value="MPrandomplay">
-            <label for="MP_REPEAT_ALL">Repeat all</label>
-            <input type="checkbox" id="MP_REPEAT_ALL" name="MP_REPEAT_ALL" value="MPrepeatall">
-            <label for="MP_REPEAT_ONE">Repeat one</label>
-            <input type="checkbox" id="MP_REPEAT_ONE" name="MP_REPEAT_ONE" value="MPrepeatone">
-        </span><br>
-        <input type="radio" id="MP_Internet" name="MPselected" value="MP_Internet">
-        <label for="MP_Internet">Internet</label> - <label for="INT_URL">URL: </label><input type="text" id="INT_URL" name="INT_URL" value="https://ice5.abradio.cz/hitvysocina128.mp3" size="40"><br>
-        <input type="radio" id="MP_Bluetooth" name="MPselected" value="MP_Bluetooth">
-        <label for="MP_Bluetooth">Bluetooth</label> - <label for="BT_NAME">name: </label><input type="text" id="BT_NAME" name="BT_NAME" value="HistoR" size="10"><!--- - <input type="submit" value="on/off">---><br>
-        <input type="radio" id="MP_Radio" name="MPselected" value="MP_Radio">
-        <label for="MP_Radio">Radio</label> - <label for="R_FREQ">frequency: </label><input type="text" id="R_FREQ" name="R_FREQ" value="99.7" size="5"><br>
-        <label for="MP_AUTO" title="After device start, automatically starts last audio source">Autoplay: </label>
-        <input type="checkbox" id="MP_AUTO" name="MP_AUTO" value="MPautoplay"> - <label for="MP_VOLUME">Volume: </label><input type="number" id="MP_VOLUME" name="MP_VOLUME" min="0" max="21" value="" size="5"/><br>
-        <input type="submit" id="MPSavePlay" value="Save & Play">
-        <input type="submit" id="MPSave" value="Save">
-        <input type="submit" id="MPStop" value="Stop"><br>
+    <h2>Stream player</h2>
+    <form action="./API" method="POST" name="StreamPlayer">
+        <input type="hidden" name="CMD" value="PLAYER">
+        <p>Currently playing: <input type="text" id="Pdesc" name="Rdesc" id="Rdesc" value="" size="100" disabled></p>
+        <p>Current frequency: <input type="text" id="Pfreq" name="Rfreq" id="Rfreq" value="" size="7" disabled></p>
+        <p>Frequency span: <input type="number" name="Pfspan" id="Pfspan" min="0" max="50" value="5" size="5"></p>
+        <p>Volume: <input type="number" name="Pvolume" id="Pvolume" min="0" max="21" value="" size="5"><br>
+        <p>Autoplay: <input type="hidden" name="Pautoplay" id="Pautoplay" value="0"><input type="checkbox" id="PautoplayBox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value"></p>
     </form>
-</div>
-<div> 
-    <h2>FM & AM transmitter</h2>
-    <form action="./">
-        <input type="hidden" name="CMD" value="TRANS">
-        <label for="FM_ACTIVE">FM active: </label>
-        <input type="checkbox" id="FM_ACTIVE" name="FM_ACTIVE" value="FMactive"><br>
-        <label for="FM_FREQ">frequency:</label>
-        <input type="text" id="FM_FREQ" name="FM_FREQ" value="92.40" size="5"><br><br>
-        <label for="AM_ACTIVE">AM active: </label>
-        <input type="checkbox" id="AM_ACTIVE" name="AM_ACTIVE" value="AMactive"><br>
-        <input type="submit" value="Save">
+    <h2>Internet streams</h2>
+    <form action="./API" method="POST" name="InternetStreams">
+        <input type="hidden" name="CMD" value="STREAMS">
+        <div style="padding-bottom: 10px;">
+            <input type="submit" name="Sdelete[]" value="X"> - FREQ: <input type="text" name="Sfreq[]" placeholder="150" value="" size="7">
+             - URL: <input type="text" name="Surl[]" placeholder="https://ice5.abradio.cz/hitvysocina128.mp3" value="" size="40"><br>
+         </div>
+         <br><input type="submit" name="Sadd" value="+ Add stream">
     </form>
 </div>
 <br>
 <hr>
 <div> 
-    <h2>WIFI settings</h2>
-    <form action="./">
-		<a href="./WIFISCAN" target="_blank">wifi scan</a><br><br>
+    <h3>WIFI settings</h3>
+    <form action="./API" method="POST" name="WifiSettings">
+    <a href="./WIFISCAN" target="_blank">wifi scan</a><br><br>
         <input type="hidden" name="CMD" value="WIFI">
         <label for="WIFI_SSID">SSID:</label><br>
         <input type="text" id="WIFI_SSID" name="SSID"> (at least 8 chars)<br>
@@ -73,8 +48,8 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
     </form>
 </div>
 <div> 
-    <h2>AP settings</h2>
-    <form action="./">
+    <h3>AP settings</h3>
+    <form action="./API" method="POST" name="APSettings">
         <input type="hidden" name="CMD" value="AP">
         <label for="AP_ACTIVE">AP active: </label>
         <input type="checkbox" id="AP_ACTIVE" name="ACTIVE" value="APactive"><br>
@@ -86,76 +61,122 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
     </form>
 </div>
 <div> 
-    <h2>Restart HistoR</h2>
-    <form id="FORM_RESTART" action="./">
+    <h3>Restart HistoR</h3>
+    <form action="./API" method="POST" name="RestartESP">
         <input type="hidden" name="CMD" value="RESTART">
-		Restart to apply changes: 
+    Restart ESP to apply changes: 
         <input type="submit" name="submit" value="Restart">
     </form>
 </div>
 </body>
 <script>
-document.getElementById("MPSavePlay").addEventListener("click", async (e) => {
-	document.getElementById("CMD2").value = "SAVEPLAY";
-});
 
-document.getElementById("MPSave").addEventListener("click", async (e) => {
-	document.getElementById("CMD2").value = "SAVE";
-});
+    var desc_tries_count = 0;
+    window.addEventListener("load", (event) => {
+        (function loop() {
+            setTimeout( async () => {
+                console.log("DESC: " + desc_tries_count);
 
-document.getElementById("MPStop").addEventListener("click", async (e) => {
-	document.getElementById("CMD2").value = "STOP";
-});
+                try {
+                    const formData = new FormData();
+                    formData.append('CMD', 'DESC');
+                    const response = await fetch("./API", {
+                        method: "POST",
+                        body: formData
+                    });
+                    const result = await response.text();
+                    
+                    console.log("Success: " + result);
+                    
+                    if (result != "" && !result.startsWith('/')) {
+                        document.getElementById("Pdesc").value = result;
+                    } else if(desc_tries_count < 3) {
+                        desc_tries_count++;
+                        loop();
+                    }
+                } catch (error) {
+                    console.error("Error: " + error);
+                    alert("Error: " + error);
+                }
+                
+            }, 1500);
+        })();
+    });
+    
+    function addStream(freq, url)
+    {
+        const newNode = document.createElement("div");
+        newNode.style = "padding-bottom: 10px;";
+        newNode.innerHTML = '<input type="submit" name="Sdelete[]" value="X"> - FREQ: <input type="text" name="Sfreq[]" value="'+freq+'" size="7"> - URL: <input type="text" name="Surl[]" value="'+url+'" size="40"><br>';
+        document.forms[1].firstElementChild.after(newNode);
+    }
 
-document.querySelectorAll('form').forEach( el => {
-	el.addEventListener("submit", async (e) => {
-		e.preventDefault();
+    document.body.addEventListener("change", function(e) {
+        console.log(e);
+        if (e.target.form != null && e.target.form.name != null) {
+            if (e.target.form.name == "StreamPlayer" || e.target.form.name == "InternetStreams") {
+                httpPOST(e.target.form.action, new FormData(e.target.form));
+            }
+        }
+    });
 
-		var form_query = "./API/?";
+    document.body.addEventListener("submit", function(e) {
+        console.log(e);
+        if (e.target != null && e.target.name != null) {
+            if (e.target.name == "WifiSettings" || e.target.name == "APSettings" || e.target.name == "RestartESP") {
+                httpPOST(e.target.action, new FormData(e.target));
+            } else if (e.target.name == "InternetStreams") {
+                if (e.submitter.name == "Sdelete[]") {
+                    formData = new FormData(e.target);
+                    formData.append('Ssubmitter', e.submitter.nextElementSibling.value);
+                    httpPOST(e.target.action, formData);
+                } else if (e.submitter.name == "Sadd") {
+                    const newNode = document.createElement("div");
+                    newNode.style = "padding-bottom: 10px;";
+                    newNode.innerHTML = '<input type="submit" name="Sdelete[]" value="X"> - FREQ: <input type="text" name="Sfreq[]" value="" size="7"> - URL: <input type="text" name="Surl[]" value="" size="40"><br>';
+                    document.forms[1].insertBefore(newNode, document.forms[1].lastElementChild.previousElementSibling);
+                }
+            }
+        }
+        e.preventDefault();
+    });
 
-		for(var i = 0; i < e.target.length; i++) {
-			console.log(e.target[i]);
-			if (e.target[i].name == ""){
-				continue;
-			}
-			if (e.target[i].type == 'checkbox') {
-				form_query += e.target[i].name + "=" + e.target[i].checked;
-			} else if (e.target[i].type != 'radio' || e.target[i].checked == true) {
-				form_query += e.target[i].name + "=" + e.target[i].value;
-			}
-			if (i+1 != e.target.length) {
-				form_query += '&';
-			}
-		}
-		//alert(form_query);
-		const response = await fetch(form_query);
-		const text = await response.text();
-		alert(text);
-		location.href = "./";
-		// TODO: reload page or not -> check error message
-	});
-});
+    async function httpGET(url) {
+        document.body.style.cursor = 'wait';
+        try {
+            const response = await fetch(url);
+            const result = await response.text();
+            
+            console.log("Success: " + result);
+            if (result != "") {
+                alert(result);
+            }
+        } catch (error) {
+            console.error("Error: " + error + '\nIf rebooting or shutting down: Success!');
+            alert("Error: " + error + '\nIf rebooting or shutting down: Success!');
+        }
+        document.body.style.cursor = 'auto';
+    }
 
-var desc_tries_count = 0;
-window.addEventListener("load", (event) => {
-	(function loop() {
-		setTimeout( async () => {
-			console.log("DESC: " + desc_tries_count);
-			
-			const response = await fetch("./API/?CMD=DESC");
-			const text = await response.text();
-			console.log(text);
-			if (text != "" && !text.startsWith('/')) {
-				document.getElementById("Mplayer").value = text;
-			} else if(desc_tries_count < 3) {
-				desc_tries_count++;
-				loop();
-			}
-		}, 1500);
-	})();
-
-});
-
+    async function httpPOST(action, data) {
+        document.body.style.cursor = 'wait';
+        try {
+            const response = await fetch(action, {
+                method: "POST",
+                body: data
+            });
+            const result = await response.text();
+            
+            console.log("Success: " + result);
+            if (result != "") {
+                alert(result);
+            }
+        } catch (error) {
+            console.error("Error: " + error);
+            alert("Error: " + error);
+        }
+        document.body.style.cursor = 'auto';
+    }
 </script>
 </html>);
 

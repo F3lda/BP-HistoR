@@ -42,10 +42,11 @@ unsigned int WIFIstatus = WL_IDLE_STATUS;
 
 
 /* AUDIO */
-char AudioCurrentlyPlayingDescription[256] = {0};
 char AudioLastInternetURL[256] = {0};
-bool AudioAutoPlay = false;
+char AudioCurrentlyPlayingDescription[256] = {0};
+char AudioFrequencySpan = 20;
 char AudioVolume = 10;
+bool AudioAutoplay = false;
 
 
 
@@ -101,12 +102,7 @@ void setup() {
     Serial.println("--------------------");
 
 
-    /* PREFERENCES */ //TODO reset button - add API button to settings -> reset to default settings
-    /* // completely remove non-volatile storage (nvs)
-     * #include <nvs_flash.h>
-    nvs_flash_erase(); // erase the NVS partition and...
-    nvs_flash_init(); // initialize the NVS partition.
-    */
+    /* PREFERENCES */
     preferences.begin(AppName, false);// Note: Namespace name is limited to 15 chars.
     //preferences.clear();// Remove all preferences under the opened namespace
     // WIFI
@@ -116,10 +112,11 @@ void setup() {
     preferences.getBytes("APPASSWORD", APpassword, 64);
     APactive = preferences.getBool("APACTIVE", APactive);
     // Audio
-    preferences.getBytes("AU_DESCRIPTION", AudioCurrentlyPlayingDescription, 256);
-    preferences.getBytes("AU_LAST_URL", AudioLastInternetURL, 256);
-    AudioAutoPlay = preferences.getBool("AU_AUTOPLAY", AudioAutoPlay);
-    AudioVolume = preferences.getChar("AU_VOLUME", AudioVolume);
+    preferences.getBytes("Pdesc", AudioCurrentlyPlayingDescription, 256);
+    preferences.getBytes("Purl", AudioLastInternetURL, 256);
+    AudioFrequencySpan = preferences.getChar("Pfspan", AudioFrequencySpan);
+    AudioVolume = preferences.getChar("Pvolume", AudioVolume);
+    AudioAutoplay = preferences.getBool("Pautoplay", AudioAutoplay);
     preferences.end();
 
 
@@ -178,21 +175,10 @@ void setup() {
         Serial.print("WEBSERVER is running on core ");
         Serial.println(xPortGetCoreID());
 
-        String requestUri = webServer.uri(); //.toCharArray(requestUri, sizeof(requestUri) + 1);
-        if (webServer.args() > 0) {
-          requestUri += "?";
-          for (int i=0; i<webServer.args(); i++) {
-            requestUri += webServer.argName(i);
-            requestUri += "=";
-            requestUri += webServer.arg(i);
-            if (i+1<webServer.args()) {
-               requestUri += "&";
-            }
-          }
-        }
-        Serial.println("requestUri: "+requestUri);
-        Serial.print("Host: ");
-        Serial.println(webServer.hostHeader());
+        String message = webServer.webServer_argsToStr();
+        Serial.println(message);
+
+        // redirect host
         if(!webServer.webServer_isIP(webServer.hostHeader()) && webServer.hostHeader() != "histor.local") {
             //webServer.sendHeader("Connection", "keep-alive");
             webServer.sendHeader("Location", "http://histor.local/", true);
@@ -205,43 +191,118 @@ void setup() {
         webServer.setContentLength(CONTENT_LENGTH_UNKNOWN); // https://www.esp8266.com/viewtopic.php?p=73204
         // here begin chunked transfer
         webServer.send(200, "text/html", "<!--- DOCUMENT START --->");
-
-
+        
         webServer.sendContent(FSH(HistoRHomePage));
         webServer.webServer_bufferContentAddChar("<script>\n");
+
+
+        // Audio
+        if (AudioCurrentlyPlayingDescription[0] != '\0') {webServer.webServer_bufferContentAddJavascriptSetElementValue("Pdesc", AudioCurrentlyPlayingDescription);}
+        if (AudioCurrentlyPlayingDescription[0] == '\0' && AudioLastInternetURL[0] != '\0') {webServer.webServer_bufferContentAddJavascriptSetElementValue("Pdesc", AudioLastInternetURL);}
+        char str[5]; sprintf(str, "%d", (int)AudioFrequencySpan); webServer.webServer_bufferContentAddJavascriptSetElementValue("Pfspan", str);
+        sprintf(str, "%d", (int)AudioVolume); webServer.webServer_bufferContentAddJavascriptSetElementValue("Pvolume", str);
+        if (AudioAutoplay) {webServer.webServer_bufferContentAddJavascriptSetElementValue("Pautoplay", (char *)"1"); webServer.webServer_bufferContentAddJavascriptSetElementChecked("PautoplayBox");}
+
+
+        // Streams
+        preferences.begin(AppName, false);
+        int streamsCount = preferences.getInt("streamsCount", 0);
+        Serial.print("streamsCount: ");
+        Serial.println(streamsCount);
+        int streamsFreq[streamsCount+1] = {0};
+        char streamsUrl[streamsCount+1][256] = {0};
+        if (streamsCount > 0) { // https://forum.arduino.cc/t/storing-an-int-array-using-preferences-esp32/1216037/2
+            preferences.getBytes("streamsFreq", &streamsFreq, sizeof(streamsFreq));
+            preferences.getBytes("streamsUrl", streamsUrl, sizeof(streamsUrl));
+        }
+        preferences.end();
+        
+        for(int i = streamsCount-1; i >= 0; i--) {
+            webServer.webServer_bufferContentAddChar("addStream(");
+            webServer.webServer_bufferContentAddInt(streamsFreq[i]);
+            webServer.webServer_bufferContentAddChar(", '");
+            webServer.webServer_bufferContentAddChar(streamsUrl[i]);
+            webServer.webServer_bufferContentAddChar("');\n");
+        }
+
+        
         // WIFI
         webServer.webServer_bufferContentAddJavascriptSetElementValue("WIFI_SSID", WIFIssid);
         webServer.webServer_bufferContentAddJavascriptSetElementValue("WIFI_PASSWORD", WIFIpassword);
         webServer.webServer_bufferContentAddJavascriptSetElementValue("AP_SSID", APssid);
         webServer.webServer_bufferContentAddJavascriptSetElementValue("AP_PASSWORD", APpassword);
         if (APactive) {webServer.webServer_bufferContentAddJavascriptSetElementChecked("AP_ACTIVE");}
-        // Audio
-        if (AudioCurrentlyPlayingDescription[0] != '\0') {webServer.webServer_bufferContentAddJavascriptSetElementValue("Mplayer", AudioCurrentlyPlayingDescription);}
-        if (AudioLastInternetURL[0] != '\0') {webServer.webServer_bufferContentAddJavascriptSetElementValue("INT_URL", AudioLastInternetURL);}
-        if (AudioAutoPlay) {webServer.webServer_bufferContentAddJavascriptSetElementChecked("MP_AUTO");}
-        char str[5]; sprintf(str, "%d", (int)AudioVolume); webServer.webServer_bufferContentAddJavascriptSetElementValue("MP_VOLUME", str);
+
 
         webServer.webServer_bufferContentAddChar("</script>\n");
-
         webServer.webServer_bufferContentFlush();
-
 
         webServer.sendContent(F("")); // this tells web client that transfer is done
         webServer.client().stop();
-
-        Serial.println("\nHome Page Loaded!\n");
     });
 
 
-    webServer.on("/API/", HTTP_GET, []() {
-        webServer.webServer_printArgs();
+    webServer.on("/API", HTTP_POST, []() {
+        webServer.webServer_argsToStr();
 
         preferences.begin(AppName, false);
 
         if (webServer.hasArg("CMD")) {
             String cmd = webServer.webServer_getArgValue("CMD");
             char temp[64] = {0};
-            if (cmd == "WIFI") {
+            if (cmd == "PLAYER") {
+                if (webServer.hasArg("Pfspan")) {
+                    AudioFrequencySpan = webServer.webServer_getArgValue("Pfspan").toInt();
+                    preferences.putChar("Pfspan", (char)AudioFrequencySpan);
+                }
+                if (webServer.hasArg("Pvolume")) {
+                    AudioVolume = webServer.webServer_getArgValue("Pvolume").toInt();
+                    preferences.putChar("Pvolume", (char)AudioVolume);
+                }
+                if (webServer.hasArg("Pautoplay")) {
+                    cmd = webServer.webServer_getArgValue("Pautoplay");
+                    if (cmd == "1") {
+                        preferences.putBool("Pautoplay", true);
+                        AudioAutoplay = true;
+                    } else if (cmd == "0") {
+                        preferences.putBool("Pautoplay", false);
+                        AudioAutoplay = false;
+                    }
+                }
+            } else if (cmd == "STREAMS") {
+                if (webServer.hasArg("Ssubmitter")) {
+                    
+                    String message = "BUTTON\n"+webServer.webServer_argsToStr();
+                    Serial.println(message);
+                    // TODO remove stream from preferences
+                    
+                    webServer.send(200, "text/plain", message);
+                    webServer.client().stop();
+                    return;
+                } else {
+                    int streamsFreq[(webServer.args()-1)/2] = {0};
+                    char streamsUrl[(webServer.args()-1)/2][256] = {0};
+                    for(int i = 1; i < webServer.args(); i++) {// TODO check if freq is empty -> if yes remove from array and streamsCount--
+                        if (webServer.argName(i) == "Sfreq[]") {
+                            // FREQ
+                            streamsFreq[(i-1)/2] = webServer.arg(i).toInt();
+                        } else if (webServer.argName(i) == "Surl[]") {
+                            // URL
+                            webServer.arg(i).toCharArray(streamsUrl[(i-2)/2], 255);
+                        } 
+                    }
+                    preferences.putInt("streamsCount", (webServer.args()-1)/2);
+                    preferences.putBytes("streamsFreq", (byte*)(&streamsFreq), sizeof(streamsFreq));
+                    preferences.putBytes("streamsUrl", (byte*)(streamsUrl), sizeof(streamsUrl));
+                    
+                    String message = "STREAMS\n"+webServer.webServer_argsToStr();
+                    Serial.println(message);
+                    
+                    webServer.send(200, "text/plain", message);
+                    webServer.client().stop();
+                    return;
+                }
+            } else if (cmd == "WIFI") {
                 if (webServer.hasArg("SSID")) {
                     webServer.webServer_getArgValue("SSID").toCharArray(temp, 63);
                     preferences.putBytes("WIFISSID", temp, 64);
@@ -280,28 +341,43 @@ void setup() {
                 webServer.client().stop();
                 delay(1500);
                 ESP.restart();
+            } else if (cmd == "ERASE") {
+                Serial.println("ERASE!!!");
+                preferences.end();
+
+                 //TODO erase preferences - add API button to settings -> reset to default settings
+                    /* // completely remove non-volatile storage (nvs)
+                     * #include <nvs_flash.h>
+                    nvs_flash_erase(); // erase the NVS partition and...
+                    nvs_flash_init(); // initialize the NVS partition.
+                    */
+
+                
+                webServer.send(200, "text/plain", "RESTART OK!");
+                webServer.client().stop();
+                delay(1500);
+                ESP.restart();
             } else if (cmd == "DESC") { // Currently playing description
                 if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
-                    strcpy(AudioCurrentlyPlayingDescription, AudioArtist);
-                    strcat(AudioCurrentlyPlayingDescription, " - ");
-                    strcat(AudioCurrentlyPlayingDescription, AudioTitle);
+                    snprintf(AudioCurrentlyPlayingDescription, 256, "%s - %s", AudioArtist, AudioTitle) < 0 ? printf("%c", '\0') : 0; // ignore truncation warning
+                    // save to preferences
+                    preferences.putBytes("Pdesc", AudioCurrentlyPlayingDescription, 256);
                     strcpy(AudioArtist, "");
                     strcpy(AudioTitle, "");
                 }
+
         
-                // save to preferences
-                //preferences.begin(AppName, false);
-                preferences.putBytes("AU_DESCRIPTION", AudioCurrentlyPlayingDescription, 256);
-                //preferences.end();
-
-
-
                 Serial.print("DESC: ");
                 Serial.println(AudioCurrentlyPlayingDescription);
-                preferences.end();
-                webServer.send(200, "text/plain", AudioCurrentlyPlayingDescription);
-                webServer.client().stop();
+                // TODO send current freq
 
+                
+                if (AudioCurrentlyPlayingDescription[0] == '\0') {
+                    webServer.send(200, "text/plain", AudioCurrentlyPlayingDescription);
+                } else {
+                    webServer.send(200, "text/plain", AudioLastInternetURL);
+                }
+                webServer.client().stop();
             }
         }
 
@@ -441,6 +517,7 @@ void setup() {
 }
 
 
+
 void loop() {
     dnsServer.processNextRequest();
     webServer.handleClient();
@@ -488,6 +565,10 @@ void loop() {
     } else {
         Serial.println("WiFi shield not found!");
     }
+
+
+    // TODO get current frequency
+    // TODO check frequency from preferences and play new stream or stop - check frequency span
 
 
     yield(); //https://github.com/espressif/arduino-esp32/issues/4348#issuecomment-1463206670

@@ -21,7 +21,7 @@ void WebServerCommon::webServer_bufferContentAddChar(const char value[])
 void WebServerCommon::webServer_bufferContentAddInt(int value)
 {
     char intvalue[32] = {0};
-    sprintf(intvalue, "%d", value);
+    snprintf(intvalue, 32, "%d", value);
     webServer_bufferContentAddChar(intvalue);
 }
 
@@ -46,35 +46,65 @@ void WebServerCommon::webServer_bufferContentAddJavascriptSetElementValue(const 
 String WebServerCommon::webServer_getArgValue(String argname)
 {
     for (int i=0; i < this->args(); i++) {
-        if (this->argName(i) == argname){
+        if (this->argName(i) == argname) {
             return this->arg(i);
         }
     }
     return "";
 }
 
-void WebServerCommon::webServer_printArgs()
+String WebServerCommon::webServer_argsToStr()
 {
-      String message = "Number of args received:";
-      message += this->args();            //Get number of parameters
-      message += "\n";                            //Add a new line
+    String message = "HTTP_REQUEST\n\n";
+    message += "URI: ";
+    message += this->uri();
+    message += "\nMethod: ";
+    message += (this->method() == HTTP_GET) ? "GET" : "POST";
+    message += "\nArguments: ";
+    message += this->args();
+    message += "\n";
+    
+    for (uint8_t i = 0; i < this->args(); i++) {
+        message += "- " + this->argName(i) + ": " + this->arg(i) + "\n";
+    }
+    
+    return message;
+}
 
-      for (int i = 0; i < this->args(); i++) {
+void WebServerCommon::webServer_handleFileUpload()
+{
+    HTTPUpload& upload = this->upload();
 
-          message += "Arg n#" + (String)i + " –> ";   //Include the current iteration value
-          message += this->argName(i) + ": ";     //Get the name of the parameter
-          message += this->arg(i) + "\n";              //Get the value of the parameter
-
-      }
-      Serial.println(message);
+    if (upload.status == UPLOAD_FILE_START) {
+        Serial.print("UPLOAD_FILE_START\nFIle name: ");
+        Serial.println(upload.name);
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        Serial.print("UPLOAD_FILE_WRITE\nTotal size: ");
+        Serial.println(upload.totalSize);
+        Serial.print("Curr size: ");
+        Serial.println(upload.currentSize);
+        Serial.print("Curr buffer: ");
+        upload.buf[upload.currentSize]=0;
+        Serial.println((char*)upload.buf);
+    } else if (upload.status == UPLOAD_FILE_END) {
+        Serial.print("UPLOAD_FILE_END\nTotal size: ");
+        Serial.println(upload.totalSize);
+        Serial.print("Curr size: ");
+        Serial.println(upload.currentSize);
+        upload.buf[upload.totalSize]=0;
+        Serial.println((char*)upload.buf);
+        
+        this->send(200, "text/plain", (char*)upload.buf);
+        this->client().stop();
+    }
 }
 
 bool WebServerCommon::webServer_isIP(String str) {
-  for (int i = 0; i < str.length(); i++) {
-    int c = str.charAt(i);
-    if (!(c == '.' || (c >= '0' && c <= '9'))) {
-      return false;
+    for (int i = 0; i < str.length(); i++) {
+        int c = str.charAt(i);
+        if (!(c == '.' || (c >= '0' && c <= '9'))) {
+            return false;
+        }
     }
-  }
-  return true;
+    return true;
 }

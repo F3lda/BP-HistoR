@@ -25,7 +25,8 @@ class WebServerCommon : public WebServer {
         void webServer_bufferContentAddJavascriptSetElementValue(const char elementId[], char value[]);
         
         String webServer_getArgValue(String argname);
-        void webServer_printArgs();
+        String webServer_argsToStr();
+        void webServer_handleFileUpload();
         bool webServer_isIP(String str);
 
 };
