@@ -106,11 +106,8 @@ def index():
     
     
     
-    dropdowndisplay = ""
+    dropdowndisplay = "<head><title>HistoRPi - Home Page</title></head>"
     dropdowndisplay += """
-
-
-
     <h1>HistoRPi - audio streaming device for historic radios</h1><hr>
 
 
@@ -208,7 +205,7 @@ def index():
             <td>{sink["state"]}</td>
             <td><input type="number" name="AU_volume[{sink["id"]}]" min="1" max="120" value="{sink["volume"]}" size="5">%</td>
             <td>
-                <select class="cls-controls" name="AU_source[{sink["id"]}]" onchange="change_controls({sink["id"]}, this.value)">
+                <select class="cls-controls" name="AU_source[{sink["id"]}]" onchange="change_controls({sink["id"]}, this.value)" {'disabled' if process_sink_playing(sink["uuid"]) != "" else ''}>
                     <option value="SD" {'selected' if sink_config["AU_source"] == "SD" else ''}>SDcard player</option>
                     <option value="URL" {'selected' if sink_config["AU_source"] == "URL" else ''}>URL player</option>
                     <option value="FM" {'selected' if sink_config["AU_source"] == "FM" else ''}>FM radio</option>
@@ -216,18 +213,18 @@ def index():
                     <option value="DAB" {'selected' if sink_config["AU_source"] == "DAB" else ''}>DAB radio</option>
                 </select>
             </td>
-            <td><input type="checkbox" {'checked' if sink["state"] == "RUNNING" else ''} disabled></td>
+            <td><input type="checkbox" {'checked' if process_sink_playing(sink["uuid"]) != "" else ''} disabled></td>
             <td><input type="hidden" name="AU_autoplay[{sink["id"]}]" value="{sink_config["AU_autoplay"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if sink_config["AU_autoplay"] == "1" else ''}></td>
             <td id="controls-{sink["id"]}">
             
                 <span class="controls-{sink["id"]}-SD">
-                    <!---<input type="hidden" name="AU_controls-SD-track[{sink["id"]}]" value="{sink_config["AU_controls-SD-track"]}">--->
-                    <input type="text" value="{sink_config["AU_controls-SD-track"]}" disabled> - 
-                    <input type="submit" value="<" title="previous">
-                    <input type="submit" value="II" title="pause">
-                    <input type="submit" value="|>" title="play">
-                    <input type="submit" value="O" title="stop">
-                    <input type="submit" value=">" title="next"> -
+                    <input type="hidden" name="AU_controls-SD-track[{sink["id"]}]" value="{sink_config["AU_controls-SD-track"]}">
+                    <input type="text" value="{process_sink_get_track(sink["uuid"]) if process_sink_get_track(sink["uuid"]) != "" else sink_config["AU_controls-SD-track"]}" disabled> - 
+                    <input type="submit" name="SD-previous" value="<" title="previous">
+                    <input type="submit" name="SD-pause" value="II" title="pause">
+                    <input type="submit" name="SD-play" value="|>" title="play">
+                    <input type="submit" name="SD-stop" value="O" title="stop">
+                    <input type="submit" name="SD-next" value=">" title="next"> -
                     repeat: <input type="hidden" name="AU_controls-SD-repeat[{sink["id"]}]" value="{sink_config["AU_controls-SD-repeat"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if sink_config["AU_controls-SD-repeat"] == "1" else ''}>
                     shuffle: <input type="hidden" name="AU_controls-SD-shuffle[{sink["id"]}]" value="{sink_config["AU_controls-SD-shuffle"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if sink_config["AU_controls-SD-shuffle"] == "1" else ''}>
                     - <a href="#select">select track</a>
@@ -235,28 +232,28 @@ def index():
                 
                 <span class="controls-{sink["id"]}-URL" style="display:none">    
                     <input type="text" name="AU_controls-URL-url[{sink["id"]}]" value="{sink_config["AU_controls-URL-url"]}" placeholder="URL" title="URL">
-                    <input type="submit" value="|>" title="play">
-                    <input type="submit" value="O" title="stop">
+                    <input type="submit" name="URL-play" value="|>" title="play">
+                    <input type="submit" name="URL-stop" value="O" title="stop">
                     <!--- maybe TODO: URL list; --->
                 </span>
                     
                 <span class="controls-{sink["id"]}-FM" style="display:none">
-                    <input type="number" name="AU_controls-FM-freq[{sink["id"]}]" value="{sink_config["AU_controls-FM-freq"]}" placeholder="FREQ" title="FREQ">
-                    <input type="submit" value="|>" title="play">
-                    <input type="submit" value="O" title="stop">
+                    <input type="text" name="AU_controls-FM-freq[{sink["id"]}]" value="{sink_config["AU_controls-FM-freq"]}" placeholder="FREQ" title="FREQ">
+                    <input type="submit" name="FM-play" value="|>" title="play">
+                    <input type="submit" name="FM-stop" value="O" title="stop">
                 </span>
                     
                 <span class="controls-{sink["id"]}-BT" style="display:none">
                     <input type="text" name="AU_controls-BT-name[{sink["id"]}]" value="{sink_config["AU_controls-BT-name"]}" placeholder="BT NAME" title="BT NAME">
-                    <input type="submit" value="ON" title="play">
-                    <input type="submit" value="OFF" title="stop">
+                    <input type="submit" name="BT-start" value="ON" title="play">
+                    <input type="submit" name="BT-stop" value="OFF" title="stop">
                 </span>
                 
                 <span class="controls-{sink["id"]}-DAB" style="display:none">
                     <input type="text" name="AU_controls-DAB-channel[{sink["id"]}]" value="{sink_config["AU_controls-DAB-channel"]}" placeholder="CHANNEL" title="CHANNEL">
                     <input type="text" name="AU_controls-DAB-station[{sink["id"]}]" value="{sink_config["AU_controls-DAB-station"]}" placeholder="STATION" title="STATION">
-                    <input type="submit" value="|>" title="play">
-                    <input type="submit" name="TEST" value="O" title="stop">
+                    <input type="submit" name="DAB-play" value="|>" title="play">
+                    <input type="submit" name="DAB-stop" value="O" title="stop">
                 </span>
             
             </td>
@@ -478,15 +475,7 @@ def index():
         document.body.addEventListener("change", function(e) {
             if (e.target.form != null && e.target.form.id != null) {
                 if (e.target.form.id == "Transmitters" || e.target.form.id == "AudioOutputs") {
-
-                    formData = new FormData();
-                    formData.append('name', e.target.name);
-                    formData.append('value', e.target.value);
-                    formData = new FormData(e.target.form);
-
-                    httpPOST(e.target.form.action, formData)
-
-                    e.preventDefault();
+                    httpPOST(e.target.form.action, new FormData(e.target.form));
                 }
             }
         });
@@ -497,19 +486,20 @@ def index():
                 if (e.target.id == "SaveWifi") {
                     httpPOST(e.target.action, new FormData(e.target));
                 } else if (e.target.id == "AudioOutputs") {
-                    // TODO javascript check buttons click
-                    alert("BUTTON:"+e.submitter.name);
-                    console.log(e.submitter)
+                    formData = new FormData(e.target);
+                    formData.append('sink_id', e.submitter.closest('tr').firstElementChild.name.split("[")[1].split("]")[0]);
+                    formData.append('sink_uuid', e.submitter.closest('tr').firstElementChild.value);
+                    formData.append('source', e.submitter.name.split("-")[0]);
+                    formData.append('button', e.submitter.name);
+                    httpPOST(e.target.action+"-button", formData);
                 }
+                e.preventDefault();
             }
-            e.preventDefault();
         });
 
         document.body.addEventListener("click", function(e) {
             if (e.target && e.target.nodeName == "A") {
-
                 httpGET(e.target.href);
-
                 e.preventDefault();
             }
         });
@@ -542,7 +532,8 @@ def index():
 
                 console.log("Success: " + result);
                 if (result != "") {
-                    alert(result);
+                    alert(result); 
+                    //window.location.href = window.location.href.split('#')[0];//TODO if result is not empty refresh page OR TODO return result and check it outside the function
                 }
             } catch (error) {
                 console.error("Error: " + error);
@@ -710,8 +701,65 @@ def raspi_audiooutputs():
 
 
 
-
-
+# AUDIOOUTPUTS - BUTTONS
+##########################
+@app.route('/audiooutputs-button', methods=['POST'])
+def raspi_audiooutputsbutton():
+    if request.method == 'POST':
+        audio_conf = dict(zip(list(request.form.keys()), list(request.form.values())))
+        
+        # check if the same AUDIO SOURCE is already playing
+        """sink_uuid = process_source_playing(audio_conf["source"])
+        if (sink_uuid != ""):
+            return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid"""
+        
+        # when BLUETOOTH start -> chekc if the SINK is DEFAULT
+        if (audio_conf["button"] == "BT-start" and audio_conf["sink_uuid"] != audio_conf["AU_default"]):
+            return "Bluetooth can play only on the default SINK!"
+            
+        
+        ## TODO audiosources control buttons
+        
+        
+        ### URL player
+        if (audio_conf["button"] == "URL-play"):
+            # check if the same AUDIO SOURCE is already playing
+            sink_uuid = process_source_playing("URL")
+            if (sink_uuid != ""):
+                return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
+            else:
+                return raspi_playURL(audio_conf["sink_uuid"], audio_conf["AU_controls-URL-url["+audio_conf["sink_id"]+"]"])
+        if (audio_conf["button"] == "URL-stop"):
+            # check if the URL player is already playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.system("sudo kill -9 "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
+                return "URL player stopped!"
+            else:
+                return "Nothing stopped - URL player is not playing or not on this SINK!"
+        
+        
+        
+        ### FM player
+        if (audio_conf["button"] == "FM-play"):
+            # check if the same AUDIO SOURCE is already playing
+            sink_uuid = process_source_playing("FM")
+            if (sink_uuid != ""):
+                return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
+            else:
+                return raspi_playFM(audio_conf["sink_uuid"], audio_conf["AU_controls-FM-freq["+audio_conf["sink_id"]+"]"])
+        if (audio_conf["button"] == "FM-stop"):
+            # check if the FM player is already playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.system("sudo kill -9 "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
+                return "FM player stopped!"
+            else:
+                return "Nothing stopped - FM player is not playing or not on this SINK!"
+        
+        
+        
+        return repr(audio_conf)+" - "+process_source_playing(audio_conf["source"])
+    
+    return 'ERORR: wrong value!'
 
 
 
@@ -792,17 +840,222 @@ def raspi_transmitters():
 
 
 @app.route('/procs')
-def raspi_procs():
+def raspi_procs(source="",sink=""):
+    try:
+        output = ""
+        
+        result = subprocess.check_output("pgrep -P "+str(os.getpid()), shell=True)
+        child_process_ids = [int(line) for line in result.splitlines()]
+        output += repr(child_process_ids)
+        result = subprocess.check_output("ps -p "+str(os.getpid())+" -o args | tail -n 1", shell=True)
+        output += str(result.decode())+"<br>"
+        
+        for child in child_process_ids:
+            result = subprocess.run("pgrep -P "+str(child), shell=True, capture_output=True, text=True, check=False)
+            child_process_ids = [int(line) for line in result.stdout.splitlines()]
+            output += str(child)+" - "+repr(child_process_ids)
+            result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
+            output += str(result.decode())+"<br>"
+            
+            
+            
+            
+        
+            for child in child_process_ids:
+                result = subprocess.run("pgrep -P "+str(child), shell=True, capture_output=True, text=True, check=False)
+                child_process_ids = [int(line) for line in result.stdout.splitlines()]
+                output += str(child)+" -- "+repr(child_process_ids)
+                result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
+                output += str(result.decode())+"<br>"
+                
+                for child in child_process_ids:
+                    result = subprocess.run("pgrep -P "+str(child), shell=True, capture_output=True, text=True, check=False)
+                    child_process_ids = [int(line) for line in result.stdout.splitlines()]
+                    output += str(child)+" -- "+repr(child_process_ids)
+                    result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
+                    output += str(result.decode())+"<br>"
+
+            
+        
+        
+        
+        return output
+        
+    except subprocess.CalledProcessError as e:
+        return "procs error:\n" + repr(e)
     #https://stackoverflow.com/questions/3162096/how-do-you-list-all-child-processes-in-python
-    ps_output = subprocess.run(['ps', '-opid', '--no-headers', '--ppid', str(os.getpid())], stdout=subprocess.PIPE, encoding='utf8')
-    child_process_ids = [int(line) for line in ps_output.stdout.splitlines()]
+    #ps_output = subprocess.run(['ps', '-opid', '--no-headers', '--ppid', str(os.getpid())], stdout=subprocess.PIPE, encoding='utf8')
+    #child_process_ids = [int(line) for line in ps_output.stdout.splitlines()]
     # get subbprocesses: pgrep -P $your_process1_pid
     # get procces CMD: ps -p 5441 -o args | tail -n 1
     # ; echo 'proc-title: test'
+    # ps -opid --no-headers --ppid
     
     # TODO kill the lowest subprocess
     #os.system("sudo kill -9 7844")
     return repr(child_process_ids)
+
+
+
+
+
+
+##########################
+# AUDIO SOURCES PLAYERS PROCESSES
+##########################
+def process_source_playing(audio_source): # returns sink name or ""
+    try:
+        result = subprocess.check_output("pgrep -P "+str(os.getpid()), shell=True)
+        child_process_ids = [int(line) for line in result.splitlines()]
+        
+        for child in child_process_ids:
+            result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
+ 
+            if str(result.decode()).startswith("/bin/sh -c echo '"+audio_source+"' ; "):
+                sink_uuid = str(result.decode()).split(';',2)
+                sink_uuid = sink_uuid[1].split('\'',2)
+                return sink_uuid[1]
+        
+    except subprocess.CalledProcessError as e:
+        return "procs error:\n" + repr(e)
+    
+    return ""
+
+
+def process_sink_playing(sink): # returns audio source name or ""
+    try:
+        result = subprocess.check_output("pgrep -P "+str(os.getpid()), shell=True)
+        child_process_ids = [int(line) for line in result.splitlines()]
+        
+        for child in child_process_ids:
+            result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
+            
+            sink_uuid = str(result.decode()).split(';',2)
+            if len(sink_uuid) < 3:
+                return ""
+            
+            sink_uuid = sink_uuid[1].split('\'',2)
+            if len(sink_uuid) < 3:
+                return ""
+            
+            if sink_uuid[1] == sink:
+                audio_source = str(result.decode()).split(';',1)
+                audio_source = audio_source[0].split('\'',2)
+                return audio_source[1]
+        
+    except subprocess.CalledProcessError as e:
+        return "procs error:\n" + repr(e)
+    
+    return ""
+
+
+def process_sink_get_track(sink): # returns track name or ""
+    try:
+        result = subprocess.check_output("pgrep -P "+str(os.getpid()), shell=True)
+        child_process_ids = [int(line) for line in result.splitlines()]
+        
+        for child in child_process_ids:
+            result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
+ 
+            if str(result.decode()).startswith("/bin/sh -c echo 'SD' ; echo '"+sink+"' ; "):
+                track_name = str(result.decode()).rsplit('\'',2)
+                if len(track_name) < 3:
+                    return ""
+                return track_name[1];
+        
+    except subprocess.CalledProcessError as e:
+        return "procs error:\n" + repr(e)
+    
+    return ""
+
+
+def process_find_lowest(source="", sink=""):
+    try:
+        result = subprocess.check_output("pgrep -P "+str(os.getpid()), shell=True)
+        child_process_ids = [int(line) for line in result.splitlines()]
+        
+        for child in child_process_ids:
+            result = subprocess.run("pgrep -P "+str(child), shell=True, capture_output=True, text=True, check=False)
+            child_process_ids = [int(line) for line in result.stdout.splitlines()]
+            result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
+            
+            
+            if str(result.decode()).startswith("/bin/sh -c echo '"+source+"' ; echo '"+sink+"' ; "):
+            
+                if len(child_process_ids) > 0:
+                    child = child_process_ids[0]
+                    result = subprocess.run("pgrep -P "+str(child), shell=True, capture_output=True, text=True, check=False)
+                    child_process_ids = [int(line) for line in result.stdout.splitlines()]
+                    
+                    if len(child_process_ids) > 0:
+                        child = child_process_ids[0]
+                        #result = subprocess.run("pgrep -P "+str(child), shell=True, capture_output=True, text=True, check=False)
+                        #child_process_ids = [int(line) for line in result.stdout.splitlines()]
+
+                return str(child) ## return the lowest subprocess PID
+        
+        
+    except subprocess.CalledProcessError as e:
+        return "procs error:\n" + repr(e)
+    
+    return "" # SOURCE is not playing on SINK
+
+
+
+
+
+
+
+
+
+
+
+##########################
+# AUDIO SOURCES PLAYERS START COMMANDS
+##########################
+def raspi_playURL(sink, url):
+    if process_source_playing("URL") == "":
+        try:
+            play_command = "echo 'URL' ; echo '"+sink+"' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::"+sink+" "+url+""
+            subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+            return 'Started Playing...'
+        except subprocess.CalledProcessError as e:
+            return "Playing error:\n" + repr(e)
+    return 'Still playing!'
+
+
+
+def raspi_playFM(sink, freq):
+    if process_source_playing("FM") == "":
+        try:
+            play_command = "echo 'FM' ; echo '"+sink+"' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 rtl_fm -f "+freq+"e6 -s 200000 -r 48000 | sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f s16le -ac 1 -ar 48000 -i - -ac 2 -f pulse -device '"+sink+"' 'stream-title'"
+            subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+            return 'Started Playing...'
+        except subprocess.CalledProcessError as e:
+            return "Playing error:\n" + repr(e)
+    return 'Still playing!'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -823,7 +1076,7 @@ def raspi_play():
         #play_command = ["python", "--version"]
         #play_command = ["mplayer", "-ao", "alsa:device=hw=0.0", "./MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3"]
         #AUDIOplayingProcess = subprocess.Popen(play_command, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::TransmittersSink './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3' ; echo 'proc-title: test'"
+        play_command = "echo 'SD' ; echo 'TransmittersSink' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::TransmittersSink './MUSIC/Creedence Clearwater Revival - Fortunate Son (Official Music Video).mp3'"
         AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
 
         return 'Started Playing...'
@@ -840,7 +1093,7 @@ def raspi_playradio():
             AUDIOplayingProcess = None
 
     if AUDIOplayingProcess == None:
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::TransmittersSink https://ice5.abradio.cz/hitvysocina128.mp3"
+        play_command = "echo 'URL' ; echo 'sinkuuid' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::TransmittersSink https://ice5.abradio.cz/hitvysocina128.mp3"
         AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
         return 'Started Playing...'
     return 'Still playing!'
@@ -848,7 +1101,7 @@ def raspi_playradio():
 
 
 @app.route('/playFM')
-def raspi_playFM():
+def raspi_playFMradio():
     global AUDIOplayingProcess
 
     if AUDIOplayingProcess != None:
@@ -857,7 +1110,7 @@ def raspi_playFM():
 
     if AUDIOplayingProcess == None:
         #rtl_fm -f 107e6 -s 200000 -r 48000 | aplay -r 48000 -f S16_LE -t raw -c 2
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 rtl_fm -f 107e6 -s 200000 -r 48000 | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
+        play_command = "echo 'FM' ; echo 'sinkuuid' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 rtl_fm -f 105.5e6 -s 200000 -r 48000 | sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f s16le -ac 1 -ar 48000 -i - -ac 2 -f pulse -device alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo 'stream-title'"
         AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
         return 'Started Playing...'
     return 'Still playing!'
@@ -873,8 +1126,10 @@ def raspi_playDAB():
             AUDIOplayingProcess = None
 
     if AUDIOplayingProcess == None:
+        # dab-rtlsdr-4 -C 12D -P 'CRo' -D 60 -d 60 | ffmpeg -use_wallclock_as_timestamps 1 -f s16le -ac 2 -ar 48000 -i - -ac 2 -f pulse -device alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo 'stream-title'
+    
         #dab-rtlsdr-4 -C 12D -P 'CRo' -D 60 -d 60 | aplay -r 48000 -f S16_LE -t raw -c 2
-        play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 12D -P 'CRo' -D 60 -d 60 | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
+        play_command = "echo 'DAB' ; echo 'sinkuuid' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 12D -P 'CRo' -D 60 -d 60 | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
         #play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 8A -P 'DAB' -D 60 -d 60 | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
         #play_command = "sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 8A -P 'DAB' -D 60 -d 60 | ffmpeg -loglevel error -i pipe: -c:a pcm_s16le -f s16le pipe: | mplayer -ao pulse::TransmittersSink -noconsolecontrols -cache 1024 -"
         AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
@@ -892,7 +1147,7 @@ def raspi_playBT():
             AUDIOplayingProcess = None
 
     if AUDIOplayingProcess == None:
-        play_command = "./LIBS/promiscuous-bluetooth-audio-sinc/a2dp-agent"
+        play_command = "echo 'BT' ; echo 'sinkuuid' ; ./LIBS/promiscuous-bluetooth-audio-sinc/a2dp-agent"
         AUDIOplayingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
         return 'Started Playing...'
     return 'Still playing!'
@@ -903,15 +1158,19 @@ def raspi_playBT():
 @app.route('/stop')
 def raspi_stop():
     global AUDIOplayingProcess
-
-    if AUDIOplayingProcess != None:
-        if AUDIOplayingProcess.poll() == None:
-            AUDIOplayingProcess.terminate()
-            os.system("sudo killall mplayer")
-            os.system("sudo killall -SIGINT a2dp-agent")
-            #os.system("sudo killall ffmpeg")
-            return 'Stopped!'
-        AUDIOplayingProcess = None
+    
+    
+    if (os.system("ps cax | grep mplayer") == 0 or os.system("ps cax | grep rtl_fm") == 0 or os.system("ps cax | grep a2dp-agent") == 0):
+    
+    #if AUDIOplayingProcess != None:
+        #if AUDIOplayingProcess.poll() == None:
+            #AUDIOplayingProcess.terminate()
+        os.system("sudo killall mplayer")
+        os.system("sudo killall rtl_fm")
+        os.system("sudo killall -SIGINT a2dp-agent")
+        #os.system("sudo killall ffmpeg")
+        return 'Stopped!'
+        #AUDIOplayingProcess = None
     return 'Nothing playing!'
 
 
@@ -1239,6 +1498,8 @@ def main():
         ## create config dir
         os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
         Path("./audio_config/").mkdir(parents=True, exist_ok=True)
+        ## create music dir
+        Path("./MUSIC/").mkdir(parents=True, exist_ok=True)
         
         ## check autoplays
         check_autoplay()
