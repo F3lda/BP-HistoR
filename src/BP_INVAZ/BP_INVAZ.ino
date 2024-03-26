@@ -2,6 +2,7 @@
 #include <DNSServer.h>
 #include <WebServer.h>
 #include <Preferences.h> // https://randomnerdtutorials.com/esp32-save-data-permanently-preferences/
+#include <nvs_flash.h>
 
 #include "HistoRWebPages.h"
 #include "AudioTask.h"
@@ -36,6 +37,7 @@ bool APactive = true;
 unsigned long WIFIlastConnectTryTimestamp = 0;
 unsigned long WIFIlastConnectTryNumber = 0;
 unsigned int WIFIstatus = WL_IDLE_STATUS;
+char WIFIlastConnectedIP[64] = "(none)";
 
 
 
@@ -46,13 +48,12 @@ char AudioLastInternetURL[256] = {0};
 char AudioCurrentlyPlayingDescription[256] = {0};
 char AudioFrequencySpan = 20;
 char AudioVolume = 10;
-bool AudioAutoplay = false;
 
 
 
 
 
-/* AUDIO TASK - audio core */
+/* AUDIO TASK - running on audio core */
 char AudioArtist[128] = {0};
 char AudioTitle[128] = {0};
 void audio_id3data(const char *info){  //id3 metadata
@@ -116,7 +117,6 @@ void setup() {
     preferences.getBytes("Purl", AudioLastInternetURL, 256);
     AudioFrequencySpan = preferences.getChar("Pfspan", AudioFrequencySpan);
     AudioVolume = preferences.getChar("Pvolume", AudioVolume);
-    AudioAutoplay = preferences.getBool("Pautoplay", AudioAutoplay);
     preferences.end();
 
 
@@ -201,7 +201,6 @@ void setup() {
         if (AudioCurrentlyPlayingDescription[0] == '\0' && AudioLastInternetURL[0] != '\0') {webServer.webServer_bufferContentAddJavascriptSetElementValue("Pdesc", AudioLastInternetURL);}
         char str[5]; sprintf(str, "%d", (int)AudioFrequencySpan); webServer.webServer_bufferContentAddJavascriptSetElementValue("Pfspan", str);
         sprintf(str, "%d", (int)AudioVolume); webServer.webServer_bufferContentAddJavascriptSetElementValue("Pvolume", str);
-        if (AudioAutoplay) {webServer.webServer_bufferContentAddJavascriptSetElementValue("Pautoplay", (char *)"1"); webServer.webServer_bufferContentAddJavascriptSetElementChecked("PautoplayBox");}
 
 
         // Streams
@@ -224,9 +223,13 @@ void setup() {
             webServer.webServer_bufferContentAddChar(streamsUrl[i]);
             webServer.webServer_bufferContentAddChar("');\n");
         }
+        if (streamsCount == 0) {
+            webServer.webServer_bufferContentAddChar("addStream(150,'https://ice5.abradio.cz/hitvysocina128.mp3');\n");
+        }
 
         
         // WIFI
+        webServer.webServer_bufferContentAddJavascriptSetElementInnerHTML("WIFI_IP", WIFIlastConnectedIP);
         webServer.webServer_bufferContentAddJavascriptSetElementValue("WIFI_SSID", WIFIssid);
         webServer.webServer_bufferContentAddJavascriptSetElementValue("WIFI_PASSWORD", WIFIpassword);
         webServer.webServer_bufferContentAddJavascriptSetElementValue("AP_SSID", APssid);
@@ -259,49 +262,27 @@ void setup() {
                     AudioVolume = webServer.webServer_getArgValue("Pvolume").toInt();
                     preferences.putChar("Pvolume", (char)AudioVolume);
                 }
-                if (webServer.hasArg("Pautoplay")) {
-                    cmd = webServer.webServer_getArgValue("Pautoplay");
-                    if (cmd == "1") {
-                        preferences.putBool("Pautoplay", true);
-                        AudioAutoplay = true;
-                    } else if (cmd == "0") {
-                        preferences.putBool("Pautoplay", false);
-                        AudioAutoplay = false;
-                    }
-                }
             } else if (cmd == "STREAMS") {
-                if (webServer.hasArg("Ssubmitter")) {
-                    
-                    String message = "BUTTON\n"+webServer.webServer_argsToStr();
-                    Serial.println(message);
-                    // TODO remove stream from preferences
-                    
-                    webServer.send(200, "text/plain", message);
-                    webServer.client().stop();
-                    return;
-                } else {
-                    int streamsFreq[(webServer.args()-1)/2] = {0};
-                    char streamsUrl[(webServer.args()-1)/2][256] = {0};
-                    for(int i = 1; i < webServer.args(); i++) {// TODO check if freq is empty -> if yes remove from array and streamsCount--
-                        if (webServer.argName(i) == "Sfreq[]") {
-                            // FREQ
-                            streamsFreq[(i-1)/2] = webServer.arg(i).toInt();
-                        } else if (webServer.argName(i) == "Surl[]") {
-                            // URL
-                            webServer.arg(i).toCharArray(streamsUrl[(i-2)/2], 255);
-                        } 
+                int streamsCount = 0;
+                int streamsFreq[(webServer.args()-1)/2] = {0};
+                char streamsUrl[(webServer.args()-1)/2][256] = {0};
+                for(int i = 1; i < webServer.args(); i++) {
+                    if (webServer.argName(i) == "Sfreq[]") {
+                        // FREQ
+                        if ((webServer.arg(i) == "" || webServer.arg(i).toInt() == 0) && webServer.arg(i+1) == "") { // if freq is empty -> skip Freq and next URL arg
+                            i++;
+                        } else {
+                            streamsFreq[streamsCount] = webServer.arg(i).toInt();
+                            streamsCount++;
+                        }
+                    } else if (webServer.argName(i) == "Surl[]") {
+                        // URL
+                        webServer.arg(i).toCharArray(streamsUrl[streamsCount-1], 255);
                     }
-                    preferences.putInt("streamsCount", (webServer.args()-1)/2);
-                    preferences.putBytes("streamsFreq", (byte*)(&streamsFreq), sizeof(streamsFreq));
-                    preferences.putBytes("streamsUrl", (byte*)(streamsUrl), sizeof(streamsUrl));
-                    
-                    String message = "STREAMS\n"+webServer.webServer_argsToStr();
-                    Serial.println(message);
-                    
-                    webServer.send(200, "text/plain", message);
-                    webServer.client().stop();
-                    return;
                 }
+                preferences.putInt("streamsCount", streamsCount);
+                preferences.putBytes("streamsFreq", (byte*)(&streamsFreq), (streamsCount*sizeof(streamsFreq[0])));
+                preferences.putBytes("streamsUrl", (byte*)(streamsUrl), (streamsCount*sizeof(streamsUrl[0])));
             } else if (cmd == "WIFI") {
                 if (webServer.hasArg("SSID")) {
                     webServer.webServer_getArgValue("SSID").toCharArray(temp, 63);
@@ -313,6 +294,11 @@ void setup() {
                     preferences.putBytes("WIFIPASSWORD", temp, 64);
                     strcpy(WIFIpassword, temp);
                 }
+
+                preferences.end();
+                webServer.send(200, "text/plain", "WIFI settings saved!");
+                webServer.client().stop();
+                return;
             } else if (cmd == "AP") {
                 if (webServer.hasArg("ACTIVE")) {
                     cmd = webServer.webServer_getArgValue("ACTIVE");
@@ -334,29 +320,33 @@ void setup() {
                     preferences.putBytes("APPASSWORD", temp, 64);
                     strcpy(APpassword, temp);
                 }
+
+                preferences.end();
+                webServer.send(200, "text/plain", "AP settings saved!");
+                webServer.client().stop();
+                return;
             } else if (cmd == "RESTART") {
                 Serial.println("RESTART!!!");
+                
                 preferences.end();
                 webServer.send(200, "text/plain", "RESTART OK!");
                 webServer.client().stop();
                 delay(1500);
                 ESP.restart();
+                return;
             } else if (cmd == "ERASE") {
                 Serial.println("ERASE!!!");
+
+                // completely remove non-volatile storage (nvs)
+                nvs_flash_erase(); // erase the NVS partition and...
+                nvs_flash_init(); // initialize the NVS partition.
+
                 preferences.end();
-
-                 //TODO erase preferences - add API button to settings -> reset to default settings
-                    /* // completely remove non-volatile storage (nvs)
-                     * #include <nvs_flash.h>
-                    nvs_flash_erase(); // erase the NVS partition and...
-                    nvs_flash_init(); // initialize the NVS partition.
-                    */
-
-                
-                webServer.send(200, "text/plain", "RESTART OK!");
+                webServer.send(200, "text/plain", "ERASE OK!");
                 webServer.client().stop();
                 delay(1500);
                 ESP.restart();
+                return;
             } else if (cmd == "DESC") { // Currently playing description
                 if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
                     snprintf(AudioCurrentlyPlayingDescription, 256, "%s - %s", AudioArtist, AudioTitle) < 0 ? printf("%c", '\0') : 0; // ignore truncation warning
@@ -383,7 +373,7 @@ void setup() {
 
         preferences.end();
 
-        webServer.send(200, "text/plain", "OK");       //Response to the HTTP request
+        webServer.send(200, "text/plain", "");       //Response to the HTTP request
         webServer.client().stop();
     });
 
@@ -512,8 +502,6 @@ void setup() {
 
 
     webServer.begin();
-
-    //TODO autoplay
 }
 
 
@@ -546,7 +534,7 @@ void loop() {
         if(WiFi.status() != WIFIstatus){
             WIFIstatus = WiFi.status();
             Serial.println("WIFI status changed: "+String(WIFIstatus));
-            if (WIFIstatus == WL_CONNECTED) {// TODO save last IP and show it in settings
+            if (WIFIstatus == WL_CONNECTED) {
                 WIFIlastConnectTryNumber = 0;
                 Serial.println("WL_CONNECTED");
                 Serial.println("--------------------");
@@ -555,6 +543,7 @@ void loop() {
                 Serial.print("IP address: ");
                 Serial.println(WiFi.localIP());
                 Serial.println("--------------------");
+                WiFi.localIP().toString().toCharArray(WIFIlastConnectedIP, 63);
                 /* don't disable AP automatically after wifi is connected
                  * APactive = false;
                 preferences.begin(AppName, false);
@@ -568,7 +557,7 @@ void loop() {
 
 
     // TODO get current frequency
-    // TODO check frequency from preferences and play new stream or stop - check frequency span
+    // TODO start radio on current freq -> check frequency from preferences and play new stream or stop - check frequency span
 
 
     yield(); //https://github.com/espressif/arduino-esp32/issues/4348#issuecomment-1463206670

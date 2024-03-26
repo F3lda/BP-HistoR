@@ -41,6 +41,15 @@ void WebServerCommon::webServer_bufferContentAddJavascriptSetElementValue(const 
     webServer_bufferContentAddChar("\";\n");
 }
 
+void WebServerCommon::webServer_bufferContentAddJavascriptSetElementInnerHTML(const char elementId[], char value[])
+{
+    webServer_bufferContentAddChar("document.getElementById('");
+    webServer_bufferContentAddChar(elementId);
+    webServer_bufferContentAddChar("').innerHTML = \"");
+    webServer_bufferContentAddChar(value);
+    webServer_bufferContentAddChar("\";\n");
+}
+
 
 
 String WebServerCommon::webServer_getArgValue(String argname)

@@ -23,6 +23,7 @@ class WebServerCommon : public WebServer {
         void webServer_bufferContentAddInt(int value);
         void webServer_bufferContentAddJavascriptSetElementChecked(const char elementId[]);
         void webServer_bufferContentAddJavascriptSetElementValue(const char elementId[], char value[]);
+        void webServer_bufferContentAddJavascriptSetElementInnerHTML(const char elementId[], char value[]);
         
         String webServer_getArgValue(String argname);
         String webServer_argsToStr();

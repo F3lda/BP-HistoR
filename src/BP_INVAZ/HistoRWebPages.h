@@ -21,15 +21,10 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
         <p>Current frequency: <input type="text" id="Pfreq" name="Rfreq" id="Rfreq" value="" size="7" disabled></p>
         <p>Frequency span: <input type="number" name="Pfspan" id="Pfspan" min="0" max="50" value="5" size="5"></p>
         <p>Volume: <input type="number" name="Pvolume" id="Pvolume" min="0" max="21" value="" size="5"><br>
-        <p>Autoplay: <input type="hidden" name="Pautoplay" id="Pautoplay" value="0"><input type="checkbox" id="PautoplayBox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value"></p>
     </form>
     <h2>Internet streams</h2>
     <form action="./API" method="POST" name="InternetStreams">
         <input type="hidden" name="CMD" value="STREAMS">
-        <div style="padding-bottom: 10px;">
-            <input type="submit" name="Sdelete[]" value="X"> - FREQ: <input type="text" name="Sfreq[]" placeholder="150" value="" size="7">
-             - URL: <input type="text" name="Surl[]" placeholder="https://ice5.abradio.cz/hitvysocina128.mp3" value="" size="40"><br>
-         </div>
          <br><input type="submit" name="Sadd" value="+ Add stream">
     </form>
 </div>
@@ -39,6 +34,8 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
     <h3>WIFI settings</h3>
     <form action="./API" method="POST" name="WifiSettings">
     <a href="./WIFISCAN" target="_blank">wifi scan</a><br><br>
+    Last IP: <b id="WIFI_IP"></b>
+    <br><br>
         <input type="hidden" name="CMD" value="WIFI">
         <label for="WIFI_SSID">SSID:</label><br>
         <input type="text" id="WIFI_SSID" name="SSID"> (at least 8 chars)<br>
@@ -58,6 +55,14 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
         <label for="AP_PASSWORD">Password:</label><br>
         <input type="text" id="AP_PASSWORD" name="PASSWORD"> (at least 8 chars)<br>
         <input type="submit" name="submit" value="Save">
+    </form>
+</div>
+<div> 
+    <h3>Erase HistoR</h3>
+    <form action="./API" method="POST" name="EraseESP">
+        <input type="hidden" name="CMD" value="ERASE">
+    Restore default settings and restart ESP: 
+        <input type="submit" name="submit" value="Erase">
     </form>
 </div>
 <div> 
@@ -90,7 +95,7 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
                     
                     if (result != "" && !result.startsWith('/')) {
                         document.getElementById("Pdesc").value = result;
-                    } else if(desc_tries_count < 3) {
+                    } else if(desc_tries_count < 3) {// TODO remove tries -> infinite loop
                         desc_tries_count++;
                         loop();
                     }
@@ -107,7 +112,7 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
     {
         const newNode = document.createElement("div");
         newNode.style = "padding-bottom: 10px;";
-        newNode.innerHTML = '<input type="submit" name="Sdelete[]" value="X"> - FREQ: <input type="text" name="Sfreq[]" value="'+freq+'" size="7"> - URL: <input type="text" name="Surl[]" value="'+url+'" size="40"><br>';
+        newNode.innerHTML = '<input type="submit" name="Sdelete[]" value="X"> - FREQ: <input type="text" name="Sfreq[]" value="'+freq+'" size="7" autocomplete="off"> - URL: <input type="text" name="Surl[]" value="'+url+'" size="40" autocomplete="off"><br>';
         document.forms[1].firstElementChild.after(newNode);
     }
 
@@ -116,6 +121,12 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
         if (e.target.form != null && e.target.form.name != null) {
             if (e.target.form.name == "StreamPlayer" || e.target.form.name == "InternetStreams") {
                 httpPOST(e.target.form.action, new FormData(e.target.form));
+                /*for (var i = 0; i < e.target.form.childElementCount; i++) {
+                    if (e.target.form.children[i].children[1] != undefined && e.target.form.children[i].children[1].value == '') {
+                        e.target.form.children[i].remove();
+                        i--; // after element removed, check again same position
+                    }
+                }*/
             }
         }
     });
@@ -123,17 +134,17 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
     document.body.addEventListener("submit", function(e) {
         console.log(e);
         if (e.target != null && e.target.name != null) {
-            if (e.target.name == "WifiSettings" || e.target.name == "APSettings" || e.target.name == "RestartESP") {
+            if (e.target.name == "WifiSettings" || e.target.name == "APSettings" || e.target.name == "RestartESP" || e.target.name == "EraseESP") {
                 httpPOST(e.target.action, new FormData(e.target));
             } else if (e.target.name == "InternetStreams") {
                 if (e.submitter.name == "Sdelete[]") {
-                    formData = new FormData(e.target);
-                    formData.append('Ssubmitter', e.submitter.nextElementSibling.value);
-                    httpPOST(e.target.action, formData);
+                    e.submitter.nextElementSibling.value = '';
+                    httpPOST(e.target.action, new FormData(e.target));
+                    e.submitter.parentElement.remove();
                 } else if (e.submitter.name == "Sadd") {
                     const newNode = document.createElement("div");
                     newNode.style = "padding-bottom: 10px;";
-                    newNode.innerHTML = '<input type="submit" name="Sdelete[]" value="X"> - FREQ: <input type="text" name="Sfreq[]" value="" size="7"> - URL: <input type="text" name="Surl[]" value="" size="40"><br>';
+                    newNode.innerHTML = '<input type="submit" name="Sdelete[]" value="X"> - FREQ: <input type="text" name="Sfreq[]" value="" size="7" autocomplete="off"> - URL: <input type="text" name="Surl[]" value="" size="40" autocomplete="off"><br>';
                     document.forms[1].insertBefore(newNode, document.forms[1].lastElementChild.previousElementSibling);
                 }
             }
