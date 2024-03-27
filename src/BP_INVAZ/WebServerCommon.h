@@ -21,6 +21,7 @@ class WebServerCommon : public WebServer {
         void webServer_bufferContentFlush();
         void webServer_bufferContentAddChar(const char value[]);
         void webServer_bufferContentAddInt(int value);
+        void webServer_bufferContentAddFloat(float value);
         void webServer_bufferContentAddJavascriptSetElementChecked(const char elementId[]);
         void webServer_bufferContentAddJavascriptSetElementValue(const char elementId[], char value[]);
         void webServer_bufferContentAddJavascriptSetElementInnerHTML(const char elementId[], char value[]);

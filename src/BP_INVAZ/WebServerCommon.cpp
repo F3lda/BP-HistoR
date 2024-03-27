@@ -25,6 +25,13 @@ void WebServerCommon::webServer_bufferContentAddInt(int value)
     webServer_bufferContentAddChar(intvalue);
 }
 
+void WebServerCommon::WebServerCommon::webServer_bufferContentAddFloat(float value)
+{
+    char floatvalue[32] = {0};
+    snprintf(floatvalue, 32, "%.2f", value);
+    webServer_bufferContentAddChar(floatvalue);
+}
+
 void WebServerCommon::webServer_bufferContentAddJavascriptSetElementChecked(const char elementId[])
 {
     webServer_bufferContentAddChar("document.getElementById('");

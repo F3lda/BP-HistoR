@@ -2,7 +2,7 @@
 
 
 
-Audio audio;
+Audio audio(true, I2S_DAC_CHANNEL_BOTH_EN); // at PINs 25 and 26
 
 
 
@@ -39,11 +39,12 @@ void audioTask(void *parameter) {
     struct audioMessage audioRxTaskMessage;
     struct audioMessage audioTxTaskMessage;
 
-    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    audio.setVolume(15); // 0...21
+    //audio.setVolume(0); // 0...21
 
     Serial.println("Free Stack Space: ");
     Serial.println(uxTaskGetStackHighWaterMark(NULL)); //This is, the minimum free stack space there has been in bytes since the task started.
+    Serial.print("setup() is running on core ");
+    Serial.println(xPortGetCoreID());
 
     while(true){
         if(xQueueReceive(audioSetQueue, &audioRxTaskMessage, 1) == pdPASS) {
@@ -104,7 +105,7 @@ void audioInit() {
     xTaskCreatePinnedToCore(
         audioTask,             /* Function to implement the task */
         "audioplay",           /* Name of the task */
-        15000,                 /* Stack size in bytes */
+        20000,                 /* Stack size in bytes */
         NULL,                  /* Task input parameter */
         2 | portPRIVILEGE_BIT, /* Priority of the task */
         NULL,                  /* Task handle. */
@@ -122,7 +123,7 @@ audioMessage transmitReceive(audioMessage msg){
     return audioRxMessage;
 }
 
-int audioSetVolume(uint8_t vol){
+int audioSetVolume(uint8_t vol){  // 0...21
     audioTxMessage.cmd = SET_VOLUME;
     audioTxMessage.value = vol;
     audioMessage RX = transmitReceive(audioTxMessage);

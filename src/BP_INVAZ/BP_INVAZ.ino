@@ -1,3 +1,7 @@
+// HistoR - Embedded system for receiving audio streams on a historic radio receiver
+// PINS: 32 and 33 -> capacitor meter; 25 and 26 (+ GND) -> audio output
+// Author: F3lda (Karel Jirgl) 2024
+
 #include <WiFi.h> // https://espressif-docs.readthedocs-hosted.com/projects/arduino-esp32/en/latest/api/wifi.html
 #include <DNSServer.h>
 #include <WebServer.h>
@@ -7,7 +11,6 @@
 #include "HistoRWebPages.h"
 #include "AudioTask.h"
 #include "WebServerCommon.h"
-
 
 
 
@@ -28,10 +31,8 @@ DNSServer         dnsServer;                // Create the DNS object
 
 char WIFIssid[64] = "";
 char WIFIpassword[64] = "";
-
 char APssid[64] = "HistoRinvaz";
 char APpassword[64] = "12345678";
-
 bool APactive = true;
 
 unsigned long WIFIlastConnectTryTimestamp = 0;
@@ -46,7 +47,7 @@ char WIFIlastConnectedIP[64] = "(none)";
 /* AUDIO */
 char AudioLastInternetURL[256] = {0};
 char AudioCurrentlyPlayingDescription[256] = {0};
-char AudioFrequencySpan = 20;
+char AudioFrequencySpan = 50;
 char AudioVolume = 10;
 
 
@@ -62,20 +63,36 @@ void audio_id3data(const char *info){  //id3 metadata
     if (data != NULL) {
         data++;
         if (info[0] == 'A' && info[1] == 'r' && info[2] == 't' && data-info == 8) {
-            strncpy(AudioArtist, data, 127); Serial.print("Artist=");Serial.println(data);
+            if (data[0] == '\0') {
+                strcpy(AudioArtist, " ");
+            } else {
+                strncpy(AudioArtist, data, 127); Serial.print("Artist=");Serial.println(data);
+            }
         }
         if (info[0] == 'T' && info[1] == 'i' && info[2] == 't' && data-info == 7) {
-            strncpy(AudioTitle, data, 127); Serial.print("Title=");Serial.println(data);
+            if (data[0] == '\0') {
+                strcpy(AudioTitle, " ");
+            } else {
+                strncpy(AudioTitle, data, 127); Serial.print("Title=");Serial.println(data);
+            }
         }
     }
 }
 void audio_showstation(const char *info){
     Serial.print("station     ");Serial.println(info);// radio station
-    strncpy(AudioArtist, info, 127);
+    if (info[0] == '\0') {
+        strcpy(AudioArtist, " ");
+    } else {
+        strncpy(AudioArtist, info, 127);
+    }
 }
 void audio_showstreamtitle(const char *info){
     Serial.print("streamtitle ");Serial.println(info);// radio info
-    strncpy(AudioTitle, info, 127);
+    if (info[0] == '\0') {
+        strcpy(AudioTitle, " ");
+    } else {
+        strncpy(AudioTitle, info, 127);
+    }
 }
 void audio_eof_mp3(const char *info){  //end of file
     Serial.print("eof_mp3     ");Serial.println(info);
@@ -93,6 +110,28 @@ void audioStartStop(bool audioisrunning){
 
 
 
+/* CAPACITY METER */
+// Source: https://wordpress.codewrite.co.uk/pic/2014/01/25/capacitance-meter-mk-ii/
+const int OUT_PIN = 32;
+const int IN_PIN = 33;
+// Capacitance between IN_PIN and Ground
+// Stray capacitance value will vary from board to board.
+// Calibrate this value using known capacitor.
+const float IN_STRAY_CAP_TO_GND = 25.00;
+const float IN_CAP_TO_GND = IN_STRAY_CAP_TO_GND;
+const int MAX_ADC_VALUE = 4095;
+// functions
+void capMeterInit();
+float capMeterGetValue();
+// value
+unsigned long CAPlastTimestamp = 0.0;
+float CAPlastValue = 0.0;
+bool CAPinSpan = false;
+
+
+
+
+
 void setup() {
     /* SETUP USB SERIAL */
     Serial.begin(9600);
@@ -101,6 +140,7 @@ void setup() {
     Serial.print("setup() is running on core ");
     Serial.println(xPortGetCoreID());
     Serial.println("--------------------");
+
 
 
     /* PREFERENCES */
@@ -118,6 +158,13 @@ void setup() {
     AudioFrequencySpan = preferences.getChar("Pfspan", AudioFrequencySpan);
     AudioVolume = preferences.getChar("Pvolume", AudioVolume);
     preferences.end();
+
+
+
+
+
+    /* CAPACITY METER */
+    capMeterInit();
 
 
 
@@ -197,8 +244,8 @@ void setup() {
 
 
         // Audio
-        if (AudioCurrentlyPlayingDescription[0] != '\0') {webServer.webServer_bufferContentAddJavascriptSetElementValue("Pdesc", AudioCurrentlyPlayingDescription);}
-        if (AudioCurrentlyPlayingDescription[0] == '\0' && AudioLastInternetURL[0] != '\0') {webServer.webServer_bufferContentAddJavascriptSetElementValue("Pdesc", AudioLastInternetURL);}
+        if (AudioCurrentlyPlayingDescription[0] != '\0') {webServer.webServer_bufferContentAddJavascriptSetElementInnerHTML("Pdesc", AudioCurrentlyPlayingDescription);}
+        if (AudioCurrentlyPlayingDescription[0] == '\0' && AudioLastInternetURL[0] != '\0') {webServer.webServer_bufferContentAddJavascriptSetElementInnerHTML("Pdesc", AudioLastInternetURL);}
         char str[5]; sprintf(str, "%d", (int)AudioFrequencySpan); webServer.webServer_bufferContentAddJavascriptSetElementValue("Pfspan", str);
         sprintf(str, "%d", (int)AudioVolume); webServer.webServer_bufferContentAddJavascriptSetElementValue("Pvolume", str);
 
@@ -256,11 +303,13 @@ void setup() {
             if (cmd == "PLAYER") {
                 if (webServer.hasArg("Pfspan")) {
                     AudioFrequencySpan = webServer.webServer_getArgValue("Pfspan").toInt();
-                    preferences.putChar("Pfspan", (char)AudioFrequencySpan);
+                    preferences.putChar("Pfspan", AudioFrequencySpan);
                 }
                 if (webServer.hasArg("Pvolume")) {
                     AudioVolume = webServer.webServer_getArgValue("Pvolume").toInt();
-                    preferences.putChar("Pvolume", (char)AudioVolume);
+                    preferences.putChar("Pvolume", AudioVolume);
+                    // change volume
+                    audioSetVolume(AudioVolume); // 0...21
                 }
             } else if (cmd == "STREAMS") {
                 int streamsCount = 0;
@@ -347,7 +396,8 @@ void setup() {
                 delay(1500);
                 ESP.restart();
                 return;
-            } else if (cmd == "DESC") { // Currently playing description
+            } else if (cmd == "DESC") { 
+                // currently playing description
                 if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
                     snprintf(AudioCurrentlyPlayingDescription, 256, "%s - %s", AudioArtist, AudioTitle) < 0 ? printf("%c", '\0') : 0; // ignore truncation warning
                     // save to preferences
@@ -356,18 +406,33 @@ void setup() {
                     strcpy(AudioTitle, "");
                 }
 
-        
-                Serial.print("DESC: ");
-                Serial.println(AudioCurrentlyPlayingDescription);
-                // TODO send current freq
 
-                
-                if (AudioCurrentlyPlayingDescription[0] == '\0') {
-                    webServer.send(200, "text/plain", AudioCurrentlyPlayingDescription);
+                // SEND VALUES - description and current frequency
+                webServer.setContentLength(CONTENT_LENGTH_UNKNOWN); // https://www.esp8266.com/viewtopic.php?p=73204
+                // here begin chunked transfer
+                webServer.send(200, "application/json", "");
+
+
+                webServer.webServer_bufferContentAddChar("{\"desc\":\"");
+                if (AudioCurrentlyPlayingDescription[0] != '\0') {
+                    webServer.webServer_bufferContentAddChar(AudioCurrentlyPlayingDescription);
                 } else {
-                    webServer.send(200, "text/plain", AudioLastInternetURL);
+                    webServer.webServer_bufferContentAddChar(AudioLastInternetURL);
                 }
+                webServer.webServer_bufferContentAddChar("\", \"freq\":\"");
+                webServer.webServer_bufferContentAddFloat(CAPlastValue);
+                webServer.webServer_bufferContentAddChar("\", \"inSpan\":\"");
+                if (CAPinSpan) {
+                    webServer.webServer_bufferContentAddChar("IN SPAN");
+                }
+                webServer.webServer_bufferContentAddChar("\"}");
+
+
+                preferences.end();
+                webServer.webServer_bufferContentFlush();
+                webServer.sendContent(F("")); // this tells web client that transfer is done
                 webServer.client().stop();
+                return;
             }
         }
 
@@ -509,6 +574,7 @@ void setup() {
 void loop() {
     dnsServer.processNextRequest();
     webServer.handleClient();
+    
     if (WiFi.status() != WL_NO_SHIELD) {
         if (WiFi.status() != WL_CONNECTED && (millis() > (WIFIlastConnectTryTimestamp + 60000) || WIFIlastConnectTryTimestamp == 0) && WIFIlastConnectTryNumber < 2) {
             Serial.println("Connecting to WIFI...");
@@ -556,9 +622,121 @@ void loop() {
     }
 
 
-    // TODO get current frequency
-    // TODO start radio on current freq -> check frequency from preferences and play new stream or stop - check frequency span
 
+    // get radio capacitor value (get current frequency)
+    if (millis()-CAPlastTimestamp >= 500) {
+        CAPlastValue = capMeterGetValue();
+        CAPlastTimestamp = millis();
+
+        
+        // start radio on current freq -> check frequency span with frequency from preferences and play new stream or stop old one
+        // get frequencies
+        preferences.begin(AppName, false);
+        int streamsCount = preferences.getInt("streamsCount", 0);
+        Serial.print("streamsCount: ");
+        Serial.println(streamsCount);
+        int streamsFreq[streamsCount+1] = {0};
+        char streamsUrl[streamsCount+1][256] = {0};
+        if (streamsCount > 0) { // https://forum.arduino.cc/t/storing-an-int-array-using-preferences-esp32/1216037/2
+            preferences.getBytes("streamsFreq", &streamsFreq, sizeof(streamsFreq));
+            preferences.getBytes("streamsUrl", streamsUrl, sizeof(streamsUrl));
+        }
+        preferences.end();
+
+
+        CAPinSpan = false;
+        static int notInSpanCount = 0;
+        for(int i = streamsCount-1; i >= 0; i--) {
+            // check if frequency is in span
+            if ((streamsFreq[i]-(int)((int)AudioFrequencySpan/2)) < CAPlastValue && CAPlastValue < (streamsFreq[i]+(int)((int)AudioFrequencySpan/2))) {
+                Serial.print("IN SPAN: ");
+                Serial.println(streamsFreq[i]);
+
+                CAPinSpan = true;
+
+                if (strcmp(AudioLastInternetURL, streamsUrl[i]) != 0) {
+                    Serial.print("STATION CHANGED: ");
+                    Serial.println(streamsUrl[i]);
+                    
+                    strcpy(AudioLastInternetURL, streamsUrl[i]);
+                    
+                    // START URL RADIO on current frequency
+                    audioStopSong();
+                    audioConnecttohost(AudioLastInternetURL);
+                }
+            }
+        }
+        if (CAPinSpan) {
+            notInSpanCount = 0;
+        } else {
+            notInSpanCount++;
+        }
+        if (notInSpanCount == 10) {
+            Serial.println("LONG TIME NOT IN SPAN: stopAudio");
+            
+            // STOP RADIO
+            audioStopSong();
+        }
+    }
+
+    
 
     yield(); //https://github.com/espressif/arduino-esp32/issues/4348#issuecomment-1463206670
+}
+
+
+void capMeterInit()
+{
+    pinMode(OUT_PIN, OUTPUT);
+    //digitalWrite(OUT_PIN, LOW);  // This is the default state for outputs
+    pinMode(IN_PIN, OUTPUT);
+    //digitalWrite(IN_PIN, LOW);
+}
+
+
+float capMeterGetValue()
+{
+    //Capacitor under test between OUT_PIN and IN_PIN
+    //Rising high edge on OUT_PIN
+    pinMode(IN_PIN, INPUT);
+    digitalWrite(OUT_PIN, HIGH);
+    int val = analogRead(IN_PIN);
+    digitalWrite(OUT_PIN, LOW);
+
+    if (val < (int)(MAX_ADC_VALUE*0.976)) // 97,6 % = 0.976
+    {
+        //Low value capacitor
+        //Clear everything for next measurement
+        pinMode(IN_PIN, OUTPUT);
+  
+        //Calculate and print result
+  
+        float capacitance = (float)val * IN_CAP_TO_GND / (float)(MAX_ADC_VALUE - val);
+  
+  
+  
+        #define CapMemSize 10
+        static float capMem[CapMemSize] = {0.0};
+        
+        float capAvg = capacitance;
+        for(int i = 0; i < CapMemSize-1; i++){
+            capAvg += capMem[i];
+            capMem[i] = capMem[i+1];
+        }
+        capMem[CapMemSize-1] = capacitance;
+        capAvg /= CapMemSize;
+        
+  
+  
+        Serial.print(F("Capacitance Value = "));
+        Serial.print(capacitance, 3);
+        Serial.print(F(" pF ("));
+        Serial.print(val);
+        Serial.print(F(") ["));
+        Serial.print(capAvg);
+        Serial.println(F("] "));
+
+        return capAvg;
+    }
+    return -1.0;
 }

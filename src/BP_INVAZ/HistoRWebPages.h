@@ -8,7 +8,9 @@
 const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
 <html>
 <head>
-<title>HistoR - Home Page</title>
+    <title>HistoR - Home Page</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=windows-1250">
+    <!---<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">--->
 </head>
 <body>
 <h1>HistoR - Embedded system for receiving audio streams on a historic radio receiver</h1>
@@ -17,8 +19,8 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
     <h2>Stream player</h2>
     <form action="./API" method="POST" name="StreamPlayer">
         <input type="hidden" name="CMD" value="PLAYER">
-        <p>Currently playing: <input type="text" id="Pdesc" name="Rdesc" id="Rdesc" value="" size="100" disabled></p>
-        <p>Current frequency: <input type="text" id="Pfreq" name="Rfreq" id="Rfreq" value="" size="7" disabled></p>
+        <p>Currently playing: <b id="Pdesc"></b></p>
+        <p>Current frequency: <input type="text" id="Pfreq" name="Rfreq" id="Rfreq" value="" size="7" disabled> - <b id="Pinspan"></b></p>
         <p>Frequency span: <input type="number" name="Pfspan" id="Pfspan" min="0" max="50" value="5" size="5"></p>
         <p>Volume: <input type="number" name="Pvolume" id="Pvolume" min="0" max="21" value="" size="5"><br>
     </form>
@@ -75,13 +77,12 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
 </div>
 </body>
 <script>
-
-    var desc_tries_count = 0;
+    console.log(document.characterSet);
     window.addEventListener("load", (event) => {
+        console.log(document.characterSet);
         (function loop() {
             setTimeout( async () => {
-                console.log("DESC: " + desc_tries_count);
-
+              
                 try {
                     const formData = new FormData();
                     formData.append('CMD', 'DESC');
@@ -89,16 +90,23 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
                         method: "POST",
                         body: formData
                     });
-                    const result = await response.text();
                     
-                    console.log("Success: " + result);
+                    const response2 = response.clone();
+                    const text = (new TextDecoder('windows-1250')).decode(await response2.arrayBuffer()); // https://github.com/schreibfaul1/ESP32-audioI2S/issues/606
+
+                    const result = await response.json(); // https://stackoverflow.com/questions/55282444/javascript-fetch-characters-with-encoding-issues
                     
-                    if (result != "" && !result.startsWith('/')) {
-                        document.getElementById("Pdesc").value = result;
-                    } else if(desc_tries_count < 3) {// TODO remove tries -> infinite loop
-                        desc_tries_count++;
-                        loop();
-                    }
+
+                    document.getElementById('Pdesc').innerHTML = JSON.parse(text).desc;
+                    document.getElementById('Pfreq').value = result["freq"];
+                    document.getElementById('Pinspan').innerHTML = result["inSpan"];
+
+
+                    console.log("DESC: " + text);
+                    console.log("FREQ: " + result["freq"]);
+                    console.log("INSPAN: " + result["inSpan"]);
+                    
+                    loop();
                 } catch (error) {
                     console.error("Error: " + error);
                     alert("Error: " + error);

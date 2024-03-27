@@ -14,20 +14,17 @@ const float IN_CAP_TO_GND  = IN_STRAY_CAP_TO_GND;
 const float R_PULLUP = 34.8;  //in k ohms
 const int MAX_ADC_VALUE = 4095;
 
-void setup()
-{
-  pinMode(OUT_PIN, OUTPUT);
-  //digitalWrite(OUT_PIN, LOW);  //This is the default state for outputs
-  pinMode(IN_PIN, OUTPUT);
-  //digitalWrite(IN_PIN, LOW);
 
-  Serial.begin(9600);
+
+void capMeterInit()
+{
+    pinMode(OUT_PIN, OUTPUT);
+    //digitalWrite(OUT_PIN, LOW);  //This is the default state for outputs
+    pinMode(IN_PIN, OUTPUT);
+    //digitalWrite(IN_PIN, LOW);
 }
 
-#define CapMemSize 10
-float capMem[CapMemSize] = {0.0};
-
-void loop()
+float capMeterGetValue()
 {
     //Capacitor under test between OUT_PIN and IN_PIN
     //Rising high edge on OUT_PIN
@@ -36,34 +33,59 @@ void loop()
     int val = analogRead(IN_PIN);
     digitalWrite(OUT_PIN, LOW);
 
-    if (val < 4000)
+    if (val < (int)(MAX_ADC_VALUE*0.976)) // 97,6 % = 0.976
     {
-      //Low value capacitor
-      //Clear everything for next measurement
-      pinMode(IN_PIN, OUTPUT);
+        //Low value capacitor
+        //Clear everything for next measurement
+        pinMode(IN_PIN, OUTPUT);
+  
+        //Calculate and print result
+  
+        float capacitance = (float)val * IN_CAP_TO_GND / (float)(MAX_ADC_VALUE - val);
+  
+  
+  
+        #define CapMemSize 10
+        static float capMem[CapMemSize] = {0.0};
+        
+        float capAvg = capacitance;
+        for(int i = 0; i < CapMemSize-1; i++){
+            capAvg += capMem[i];
+            capMem[i] = capMem[i+1];
+        }
+        capMem[CapMemSize-1] = capacitance;
+        capAvg /= CapMemSize;
+        
+  
+  
+        Serial.print(F("Capacitance Value = "));
+        Serial.print(capacitance, 3);
+        Serial.print(F(" pF ("));
+        Serial.print(val);
+        Serial.print(F(") ["));
+        Serial.print(capAvg);
+        Serial.println(F("] "));
 
-      //Calculate and print result
+        return capAvg;
+    }
+    return -1.0;
+}
 
-      float capacitance = (float)val * IN_CAP_TO_GND / (float)(MAX_ADC_VALUE - val);
+void setup()
+{
+  capMeterInit();
+
+  Serial.begin(9600);
+}
 
 
-      float capAvg = capacitance;
-      for(int i = 0; i < CapMemSize-1; i++){
-          capAvg += capMem[i];
-          capMem[i] = capMem[i+1];
-      }
-      capMem[CapMemSize-1] = capacitance;
-      capAvg /= CapMemSize;
+
+void loop()
+{
+    float value = capMeterGetValue();
+    if (value != -1.0)
+    {
       
-
-
-      Serial.print(F("Capacitance Value = "));
-      Serial.print(capacitance, 3);
-      Serial.print(F(" pF ("));
-      Serial.print(val);
-      Serial.print(F(") ["));
-      Serial.print(capAvg);
-      Serial.println(F("] "));
     }
     else
     {
@@ -90,7 +112,7 @@ void loop()
 
       pinMode(OUT_PIN, INPUT);  //Stop charging
       //Now we can read the level the capacitor has charged up to
-      val = analogRead(OUT_PIN);
+      int val = analogRead(OUT_PIN);
 
       //Discharge capacitor for next measurement
       digitalWrite(IN_PIN, HIGH);
