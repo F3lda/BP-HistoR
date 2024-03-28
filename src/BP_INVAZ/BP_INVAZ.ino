@@ -1,7 +1,12 @@
-// HistoR - Embedded system for receiving audio streams on a historic radio receiver
+/**
+ * @file HistoRinvaz.ino
+ * 
+ * @brief HistoR - Embedded system for receiving audio streams on a historic radio receiver
+ * @date 2024-03-18
+ * @author F3lda (Karel Jirgl)
+ * @update 2024-03-28 (v1.0)
+ */
 // PINS: 32 and 33 -> capacitor meter; 25 and 26 (+ GND) -> audio output
-// Author: F3lda (Karel Jirgl) 2024
-
 #include <WiFi.h> // https://espressif-docs.readthedocs-hosted.com/projects/arduino-esp32/en/latest/api/wifi.html
 #include <DNSServer.h>
 #include <WebServer.h>
@@ -35,9 +40,7 @@ char APssid[64] = "HistoRinvaz";
 char APpassword[64] = "12345678";
 bool APactive = true;
 
-unsigned long WIFIlastConnectTryTimestamp = 0;
-unsigned long WIFIlastConnectTryNumber = 0;
-unsigned int WIFIstatus = WL_IDLE_STATUS;
+int WIFIstatus = WL_IDLE_STATUS;
 char WIFIlastConnectedIP[64] = "(none)";
 
 
@@ -112,19 +115,18 @@ void audioStartStop(bool audioisrunning){
 
 /* CAPACITY METER */
 // Source: https://wordpress.codewrite.co.uk/pic/2014/01/25/capacitance-meter-mk-ii/
-const int OUT_PIN = 32;
-const int IN_PIN = 33;
+#define OUT_PIN 32
+#define IN_PIN 33
 // Capacitance between IN_PIN and Ground
 // Stray capacitance value will vary from board to board.
 // Calibrate this value using known capacitor.
-const float IN_STRAY_CAP_TO_GND = 25.00;
+#define IN_STRAY_CAP_TO_GND 25.00
 const float IN_CAP_TO_GND = IN_STRAY_CAP_TO_GND;
-const int MAX_ADC_VALUE = 4095;
+#define MAX_ADC_VALUE 4095
 // functions
 void capMeterInit();
 float capMeterGetValue();
 // value
-unsigned long CAPlastTimestamp = 0.0;
 float CAPlastValue = 0.0;
 bool CAPinSpan = false;
 
@@ -144,19 +146,16 @@ void setup() {
 
 
     /* PREFERENCES */
-    preferences.begin(AppName, false);// Note: Namespace name is limited to 15 chars.
-    //preferences.clear();// Remove all preferences under the opened namespace
+    preferences.begin(AppName, false); // Note: Namespace name is limited to 15 chars.
+    // Audio
+    AudioFrequencySpan = preferences.getChar("Pfspan", AudioFrequencySpan);
+    AudioVolume = preferences.getChar("Pvolume", AudioVolume);
     // WIFI
     preferences.getBytes("WIFISSID", WIFIssid, 64);
     preferences.getBytes("WIFIPASSWORD", WIFIpassword, 64);
     preferences.getBytes("APSSID", APssid, 64);
     preferences.getBytes("APPASSWORD", APpassword, 64);
     APactive = preferences.getBool("APACTIVE", APactive);
-    // Audio
-    preferences.getBytes("Pdesc", AudioCurrentlyPlayingDescription, 256);
-    preferences.getBytes("Purl", AudioLastInternetURL, 256);
-    AudioFrequencySpan = preferences.getChar("Pfspan", AudioFrequencySpan);
-    AudioVolume = preferences.getChar("Pvolume", AudioVolume);
     preferences.end();
 
 
@@ -386,6 +385,9 @@ void setup() {
             } else if (cmd == "ERASE") {
                 Serial.println("ERASE!!!");
 
+                // Remove all preferences under the opened namespace
+                //preferences.clear();
+                
                 // completely remove non-volatile storage (nvs)
                 nvs_flash_erase(); // erase the NVS partition and...
                 nvs_flash_init(); // initialize the NVS partition.
@@ -574,7 +576,9 @@ void setup() {
 void loop() {
     dnsServer.processNextRequest();
     webServer.handleClient();
-    
+
+    static unsigned int WIFIlastConnectTryNumber = 0;
+    static unsigned long WIFIlastConnectTryTimestamp = 0;
     if (WiFi.status() != WL_NO_SHIELD) {
         if (WiFi.status() != WL_CONNECTED && (millis() > (WIFIlastConnectTryTimestamp + 60000) || WIFIlastConnectTryTimestamp == 0) && WIFIlastConnectTryNumber < 2) {
             Serial.println("Connecting to WIFI...");
@@ -624,6 +628,7 @@ void loop() {
 
 
     // get radio capacitor value (get current frequency)
+    static unsigned long CAPlastTimestamp = 0.0;
     if (millis()-CAPlastTimestamp >= 500) {
         CAPlastValue = capMeterGetValue();
         CAPlastTimestamp = millis();
@@ -659,6 +664,7 @@ void loop() {
                     Serial.println(streamsUrl[i]);
                     
                     strcpy(AudioLastInternetURL, streamsUrl[i]);
+                    AudioCurrentlyPlayingDescription[0] = '\0';
                     
                     // START URL RADIO on current frequency
                     audioStopSong();
@@ -676,6 +682,8 @@ void loop() {
             
             // STOP RADIO
             audioStopSong();
+            AudioLastInternetURL[0] = '\0';
+            AudioCurrentlyPlayingDescription[0] = '\0';
         }
     }
 

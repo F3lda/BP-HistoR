@@ -1,10 +1,7 @@
 #include "AudioTask.h"
 
 
-
 Audio audio(true, I2S_DAC_CHANNEL_BOTH_EN); // at PINs 25 and 26
-
-
 
 //****************************************************************************************
 //                                   A U D I O _ T A S K                                 *
