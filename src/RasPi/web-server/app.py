@@ -1,9 +1,12 @@
-from flask import Flask,request
+from flask import Flask,request,redirect,url_for
 import subprocess
 from threading import Thread
 import os
 import time
 from pathlib import Path
+import urllib.parse
+from shutil import rmtree
+import tempfile
 # user repr() as var_dump()
 
 
@@ -20,13 +23,12 @@ def list_join_span(array, separator, span):
     return [separator.join(array[i:i+span]) for i in range(0, len(array), span)]
 
 
-
-def web_config_change_value(key, value):
+def config_file_change_value(file, key, value):
     os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
     
     value_changed = False
     new_content = ""
-    with open(web_file, "r+") as file:
+    with open(file, "r+") as file:
         for line in file:
             line = line.strip()
             if line.startswith(key):
@@ -42,11 +44,11 @@ def web_config_change_value(key, value):
     return value_changed
 
 
-def web_config_get_value(key):
+def config_file_get_value(file, key):
     os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
     
     value = None
-    with open(web_file, "r+") as file:
+    with open(file, "r+") as file:
         for line in file:
             line = line.strip()
             if line.startswith(key):
@@ -72,22 +74,13 @@ def read_web_config():
     return file_items
 
 
-
-def check_web_config_states():
-    # check FM transmitters
-    if (os.system("ps cax | grep pifmrds") == 0 or os.system("ps cax | grep rpitx") == 0):
-        web_config_change_value("TS_live", "1")
-    else:
-        web_config_change_value("TS_live", "0")
-
-
 def check_autoplay():
-    if web_config_get_value("TS_autoplay") == '1':
-        transmitter = web_config_get_value("TS_trans")
+    if config_file_get_value(web_file, "TS_autoplay") == '1':
+        transmitter = config_file_get_value(web_file, "TS_trans")
         if transmitter == "FM":
-            return raspi_transFM(web_config_get_value("TS_source"), web_config_get_value("TS_freq"), web_config_get_value("TS_desc-8ch"), web_config_get_value("TS_desc-long"))
+            return raspi_transFM(config_file_get_value(web_file, "TS_source"), config_file_get_value(web_file, "TS_freq"), config_file_get_value(web_file, "TS_desc-8ch"), config_file_get_value(web_file, "TS_desc-long"))
         elif transmitter == "AM":
-            return raspi_transAM(web_config_get_value("TS_source"), web_config_get_value("TS_freq"))
+            return raspi_transAM(config_file_get_value(web_file, "TS_source"), config_file_get_value(web_file, "TS_freq"))
     # TODO check audio outputs autoplays
 
 
@@ -95,9 +88,6 @@ def check_autoplay():
 def index():
     ## Disable IPtoSPEECH
     raspi_disablevoiceip()
-    
-    ## check config states
-    check_web_config_states()
     
     ## read config file
     web_config = read_web_config()
@@ -205,7 +195,8 @@ def index():
             <td>{sink["state"]}</td>
             <td><input type="number" name="AU_volume[{sink["id"]}]" min="1" max="120" value="{sink["volume"]}" size="5">%</td>
             <td>
-                <select class="cls-controls" name="AU_source[{sink["id"]}]" onchange="change_controls({sink["id"]}, this.value)" {'disabled' if process_sink_playing(sink["uuid"]) != "" else ''}>
+                <input type="hidden" name="AU_source[{sink["id"]}]" value="{sink_config["AU_source"]}">
+                <select class="cls-controls" onchange="change_controls({sink["id"]}, this.value); this.previousElementSibling.value=this.value;" {'disabled' if process_sink_playing(sink["uuid"]) != "" else ''}>
                     <option value="SD" {'selected' if sink_config["AU_source"] == "SD" else ''}>SDcard player</option>
                     <option value="URL" {'selected' if sink_config["AU_source"] == "URL" else ''}>URL player</option>
                     <option value="FM" {'selected' if sink_config["AU_source"] == "FM" else ''}>FM radio</option>
@@ -221,20 +212,18 @@ def index():
                     <input type="hidden" name="AU_controls-SD-track[{sink["id"]}]" value="{sink_config["AU_controls-SD-track"]}">
                     <input type="text" value="{process_sink_get_track(sink["uuid"]) if process_sink_get_track(sink["uuid"]) != "" else sink_config["AU_controls-SD-track"]}" disabled> - 
                     <input type="submit" name="SD-previous" value="<" title="previous">
-                    <input type="submit" name="SD-pause" value="II" title="pause">
-                    <input type="submit" name="SD-play" value="|>" title="play">
+                    <input type="submit" name="SD-pause-resume" value="|>" title="pause/resume">
                     <input type="submit" name="SD-stop" value="O" title="stop">
                     <input type="submit" name="SD-next" value=">" title="next"> -
                     repeat: <input type="hidden" name="AU_controls-SD-repeat[{sink["id"]}]" value="{sink_config["AU_controls-SD-repeat"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if sink_config["AU_controls-SD-repeat"] == "1" else ''}>
-                    shuffle: <input type="hidden" name="AU_controls-SD-shuffle[{sink["id"]}]" value="{sink_config["AU_controls-SD-shuffle"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if sink_config["AU_controls-SD-shuffle"] == "1" else ''}>
-                    - <a href="#select">select track</a>
+                    <span style="cursor:help; text-decoration:underline; text-decoration-style: dotted;" title="Random play is checked only when SDcard player starts playing!">shuffle</span>: <input type="hidden" name="AU_controls-SD-shuffle[{sink["id"]}]" value="{sink_config["AU_controls-SD-shuffle"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if sink_config["AU_controls-SD-shuffle"] == "1" else ''}>
+                    - <a class="trackselect" data-sink="{sink["uuid"]}" href="/sdcard?sink={urllib.parse.quote_plus(sink["uuid"])}">select track</a>
                 </span>
                 
                 <span class="controls-{sink["id"]}-URL" style="display:none">    
                     <input type="text" name="AU_controls-URL-url[{sink["id"]}]" value="{sink_config["AU_controls-URL-url"]}" placeholder="URL" title="URL">
                     <input type="submit" name="URL-play" value="|>" title="play">
                     <input type="submit" name="URL-stop" value="O" title="stop">
-                    <!--- maybe TODO: URL list; --->
                 </span>
                     
                 <span class="controls-{sink["id"]}-FM" style="display:none">
@@ -287,7 +276,7 @@ def index():
         <tr>
             <td rowspan="2">
                 <div id="ck-button"><label>
-                    <input type="hidden" name="TS_live" value="{web_config["TS_live"]}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if web_config["TS_live"] == "1" else ''}><span>ON AIR</span>
+                    <input type="hidden" name="TS_live" value="{'1' if (os.system("ps cax | grep pifmrds") == 0 or os.system("ps cax | grep rpitx") == 0) else '0'}"><input type="checkbox" onclick="this.previousElementSibling.value=1-this.previousElementSibling.value" {'checked' if (os.system("ps cax | grep pifmrds") == 0 or os.system("ps cax | grep rpitx") == 0) else ''}><span>ON AIR</span>
                 </label></div>
             </td>
             <td>
@@ -499,8 +488,22 @@ def index():
 
         document.body.addEventListener("click", function(e) {
             if (e.target && e.target.nodeName == "A") {
-                httpGET(e.target.href);
-                e.preventDefault();
+                if (!e.target.classList.contains('trackselect')) {
+                    httpGET(e.target.href);
+                    e.preventDefault();
+                } else {
+                    //e.target.dataset["sink"]
+                    
+                    e.target.href += "&options="
+                    url = ""
+                    if (e.target.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.checked) {
+                        url += "-loop 0 ";
+                    }
+                    if (e.target.previousElementSibling.checked) {
+                        url += "-shuffle ";
+                    }
+                    e.target.href += encodeURIComponent(url);
+                }
             }
         });
 
@@ -720,6 +723,40 @@ def raspi_audiooutputsbutton():
         
         ## TODO audiosources control buttons
         
+        ### SDcard player
+        if (audio_conf["button"] == "SD-pause-resume"):
+            # check if the SDcard player is playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+                os.system('echo "pause" > mplayercontrol.pipe')
+                return ''
+            else:
+                return "Nothing paused/resumed - SDcard player is not playing or not on this SINK!"
+        if (audio_conf["button"] == "SD-previous"):
+            # check if the SDcard player is playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+                os.system('echo "pt_step -1" > mplayercontrol.pipe')
+                return ''
+            else:
+                return "No previous track - SDcard player is not playing or not on this SINK!"
+        if (audio_conf["button"] == "SD-next"):
+            # check if the SDcard player is playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+                os.system('echo "pt_step 1" > mplayercontrol.pipe')
+                return ''
+            else:
+                return "No next track - SDcard player is not playing or not on this SINK!"
+        
+        if (audio_conf["button"] == "SD-stop"):
+            # check if the SDcard player is already playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.system("sudo kill -9 "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
+                return "SDcard player stopped!"
+            else:
+                return "Nothing stopped - SDcard player is not playing or not on this SINK!"
+        
         
         ### URL player
         if (audio_conf["button"] == "URL-play"):
@@ -765,6 +802,117 @@ def raspi_audiooutputsbutton():
 
 
 
+# AUDIOOUTPUTS - SDCARD
+##########################
+@app.route('/sdcard', methods=['GET', 'POST'])
+def raspi_sdcard():
+    sink = request.args.get('sink') # sink where to play -> if empty -> default sink
+    path = request.args.get('path') # show files in path
+    file = request.args.get('file') # play this file
+    options = request.args.get('options') # play options
+    cmd = request.args.get('cmd') # file command
+    
+    os.chdir(os.path.dirname(os.path.realpath(__file__))+'/MUSIC/') # change working directory
+    
+    if cmd != None:
+        form_keys = list(request.form.keys())
+        form_values = list(request.form.values())
+        form = dict(zip(list(request.form.keys()), list(request.form.values())))
+        
+        if cmd == "delete":
+            try:
+                rmtree(file)
+            except OSError as e:
+                pass
+            return redirect(str(url_for('raspi_sdcard'))+"?path="+path+"&sink="+sink+"&options="+options)
+            
+        elif cmd == "upload":
+            f = request.files['file']
+            if f.filename != '':
+                os.chdir(form['path'])
+                f.save(f.filename)
+            return redirect(str(url_for('raspi_sdcard'))+"?path="+path+"&sink="+sink+"&options="+options)
+            
+        elif cmd == "create":
+            Path(os.path.join(form['path'], form['dirname'])).mkdir(parents=True, exist_ok=True)
+            return redirect(str(url_for('raspi_sdcard'))+"?path="+path+"&sink="+sink+"&options="+options)
+            
+    elif file == None:
+        
+        if sink == None:
+            return 'ERROR: sink is not set!'
+        if os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl list short sinks | grep $'\t''"+sink+"'$'\t'") == 1:
+            return 'ERROR: sink doesnt exists!'+repr(sink)
+        current_sink = sink
+        
+        sdcard_path = '.'
+        if path != None and path != '':
+            sdcard_path = path
+        else:
+            sdcard_path += '/'
+        
+        real_path = os.path.realpath(sdcard_path)
+        
+        if not os.path.exists(sdcard_path):
+            return 'ERROR: wrong path!'+repr(sdcard_path)
+        
+        output = '<head><title>HistoRPi - SDcard player</title></head><h2>SDcard player</h2>'
+        #output += '- real path: '+real_path+'<br>'
+        output += 'Current path: '+sdcard_path.removeprefix('.')+'<br>'
+        output += 'Current sink: '+current_sink+'<br><hr>'
+        output += '<a href="/sdcard?file='+urllib.parse.quote_plus(sdcard_path.removesuffix('/')+'/*.*')+'&sink='+urllib.parse.quote_plus(sink)+'&options='+urllib.parse.quote_plus(options)+'">PLAY THE CURRENT DIRECTORY</a><br><br>'
+        if sdcard_path != './':
+            output += 'DIR  - <a href="/sdcard?path='+urllib.parse.quote_plus(os.path.dirname(os.path.dirname(sdcard_path))+'/')+'&sink='+urllib.parse.quote_plus(sink)+'&options='+urllib.parse.quote_plus(options)+'">..</a><br>'
+        for item in os.listdir(sdcard_path):
+            if os.path.isdir(os.path.join(sdcard_path, item)):
+                output += '<button onclick="if (confirm(\'Delete directory <'+item+'>?\')) {location.href=\'./sdcard?cmd=delete&path='+urllib.parse.quote_plus(sdcard_path.removesuffix('/')+'/')+'&sink='+urllib.parse.quote_plus(sink)+'&options='+urllib.parse.quote_plus(options)+'&file='+urllib.parse.quote_plus(sdcard_path.removesuffix('/')+'/'+item+'/')+'\';}">X</button> - DIR  - <a href="/sdcard?path='+urllib.parse.quote_plus(sdcard_path.removesuffix('/')+'/'+item+'/')+'&sink='+urllib.parse.quote_plus(sink)+'&options='+urllib.parse.quote_plus(options)+'">'+item+'</a><br>'
+            else:
+                output += '<button onclick="if (confirm(\'Delete file <'+item+'>?\')) {location.href=\'./sdcard?cmd=delete&path='+urllib.parse.quote_plus(sdcard_path.removesuffix('/')+'/')+'&sink='+urllib.parse.quote_plus(sink)+'&options='+urllib.parse.quote_plus(options)+'&file='+urllib.parse.quote_plus(sdcard_path.removesuffix('/')+'/'+item)+'\';}">X</button> - FILE - <a href="/sdcard?file='+urllib.parse.quote_plus(sdcard_path.removesuffix('/')+'/'+item)+'&sink='+urllib.parse.quote_plus(sink)+'&options='+urllib.parse.quote_plus(options)+'">'+item+'</a><br>'
+        output += "<hr><form action='./sdcard?cmd=create&path="+urllib.parse.quote_plus(sdcard_path.removesuffix('/')+'/')+"&sink="+urllib.parse.quote_plus(sink)+"&options="+urllib.parse.quote_plus(options)+"' method='POST'>Create new directory: <input type='text' name='dirname' placeholder='directory name'><input type='hidden' name='path' value='"+real_path+"'><input type='submit' value='create'></form>"
+        output += "<form method='POST' enctype='multipart/form-data' action='./sdcard?cmd=upload&path="+urllib.parse.quote_plus(sdcard_path.removesuffix('/')+'/')+"&sink="+urllib.parse.quote_plus(sink)+"&options="+urllib.parse.quote_plus(options)+"' method='POST'>Upload file: <input type='file' name='file' placeholder='file name'><input type='hidden' name='path' value='"+real_path+"'><input type='submit' value='upload'></form>"
+        output += "<a href='./'>Home</a>"
+        
+        return output
+    
+    else:
+        path = file.removesuffix('*.*')
+        if not os.path.exists(path):
+            return 'ERROR: file doesnt exists!'+repr(path)
+        if sink == None:
+            return 'ERROR: sink is not set!'
+        if os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl list short sinks | grep $'\t''"+sink+"'$'\t'") == 1:
+            return 'ERROR: sink doesnt exists!'+repr(sink)
+        if options == None:
+            options = ""
+        
+        
+        path = './MUSIC'+file.removeprefix('.')
+        
+        if path.endswith('*.*'):
+            path = "'"+path.removesuffix('*.*')+"'*.*"
+        else:
+            path = "'"+path+"'"
+        
+        # play sdcard mplayer
+        result = raspi_playSD(sink, path, options)
+        
+        # save path to sink config as track
+        #os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+        config_file_change_value(os.path.join(os.path.dirname(os.path.realpath(__file__)), './audio_config/'+sink+'.conf'), "AU_controls-SD-track", path)
+        
+        # wait to mplayer load up
+        while(process_sink_get_track(sink) == "" and result == "Started Playing..."):
+            time.sleep(0.500)
+        
+        return '<script>alert("'+result+'"); location.href = "./";</script>'
+        #return redirect(url_for('index'))
+        #return 'Play this file: '+path+'<br>On this sink: '+str(sink)
+        
+
+
+
+
+
 ##########################
 # TRANSMITTERS
 ##########################
@@ -773,9 +921,25 @@ def raspi_transmitters():
     if request.method == 'POST':
         form_keys = list(request.form.keys())
         form_values = list(request.form.values())
+        trans_conf = dict(zip(list(request.form.keys()), list(request.form.values())))
         
-        live_value = web_config_get_value("TS_live")
+        
+        # check values
+        live_value = '1' if (os.system("ps cax | grep pifmrds") == 0 or os.system("ps cax | grep rpitx") == 0) else '0'
 
+        if "TS_live" in trans_conf and "TS_trans" in trans_conf:
+            if live_value != trans_conf["TS_live"]: # continue only if TS_live value has changed
+                if trans_conf["TS_live"] == "1":
+                    if trans_conf["TS_trans"] == "FM":
+                        return raspi_transFM(trans_conf["TS_source"], trans_conf["TS_freq"], trans_conf["TS_desc-8ch"], trans_conf["TS_desc-long"])
+                    elif trans_conf["TS_trans"] == "AM":
+                        return raspi_transAM(trans_conf["TS_source"], trans_conf["TS_freq"])
+                else:
+                    return raspi_transStop()
+        form_keys.remove("TS_live")
+        
+        
+        # save values
         os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
 
         new_content = ""
@@ -788,8 +952,8 @@ def raspi_transmitters():
 
                 if line.startswith("TS_"):
                     if len(form_keys) != 0:
-                        for i, key in enumerate(form_keys):
-                            new_content += key+'='+form_values[i]+'\n'
+                        for key in form_keys:
+                            new_content += key+'='+trans_conf[key]+'\n'
                         form_keys.clear()
 
                 else:
@@ -797,8 +961,8 @@ def raspi_transmitters():
 
 
             if len(form_keys) != 0:
-                for i, key in enumerate(form_keys):
-                    new_content += key+'='+form_values[i]+'\n'
+                for key in form_keys:
+                    new_content += key+'='+trans_conf[key]+'\n'
                 form_keys.clear()
 
 
@@ -806,20 +970,9 @@ def raspi_transmitters():
             file.write(new_content)
             file.truncate()
         
-        # check values
-        trans_conf = dict(zip(list(request.form.keys()), list(request.form.values())))
-        # transmitters
-        if "TS_live" in trans_conf and "TS_trans" in trans_conf:
-            if live_value != trans_conf["TS_live"]: # continue only if TS_live value has changed
-                if trans_conf["TS_live"] == "1":
-                    if trans_conf["TS_trans"] == "FM":
-                        return raspi_transFM(trans_conf["TS_source"], trans_conf["TS_freq"], trans_conf["TS_desc-8ch"], trans_conf["TS_desc-long"])
-                    elif trans_conf["TS_trans"] == "AM":
-                        return raspi_transAM(trans_conf["TS_source"], trans_conf["TS_freq"])
-                else:
-                    return raspi_transStop()
+
         
-        return ''
+        return ''+repr("TS_live" in trans_conf)
 
     return 'ERORR: invalid request!'
 
@@ -875,7 +1028,7 @@ def raspi_procs(source="",sink=""):
                     result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
                     output += str(result.decode())+"<br>"
 
-            
+
         
         
         
@@ -883,16 +1036,6 @@ def raspi_procs(source="",sink=""):
         
     except subprocess.CalledProcessError as e:
         return "procs error:\n" + repr(e)
-    #https://stackoverflow.com/questions/3162096/how-do-you-list-all-child-processes-in-python
-    #ps_output = subprocess.run(['ps', '-opid', '--no-headers', '--ppid', str(os.getpid())], stdout=subprocess.PIPE, encoding='utf8')
-    #child_process_ids = [int(line) for line in ps_output.stdout.splitlines()]
-    # get subbprocesses: pgrep -P $your_process1_pid
-    # get procces CMD: ps -p 5441 -o args | tail -n 1
-    # ; echo 'proc-title: test'
-    # ps -opid --no-headers --ppid
-    
-    # TODO kill the lowest subprocess
-    #os.system("sudo kill -9 7844")
     return repr(child_process_ids)
 
 
@@ -931,12 +1074,13 @@ def process_sink_playing(sink): # returns audio source name or ""
             result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
             
             sink_uuid = str(result.decode()).split(';',2)
+            
             if len(sink_uuid) < 3:
-                return ""
+                continue
             
             sink_uuid = sink_uuid[1].split('\'',2)
             if len(sink_uuid) < 3:
-                return ""
+                continue
             
             if sink_uuid[1] == sink:
                 audio_source = str(result.decode()).split(';',1)
@@ -951,18 +1095,12 @@ def process_sink_playing(sink): # returns audio source name or ""
 
 def process_sink_get_track(sink): # returns track name or ""
     try:
-        result = subprocess.check_output("pgrep -P "+str(os.getpid()), shell=True)
-        child_process_ids = [int(line) for line in result.splitlines()]
-        
-        for child in child_process_ids:
-            result = subprocess.check_output("ps -p "+str(child)+" -o args | tail -n 1", shell=True)
- 
-            if str(result.decode()).startswith("/bin/sh -c echo 'SD' ; echo '"+sink+"' ; "):
-                track_name = str(result.decode()).rsplit('\'',2)
-                if len(track_name) < 3:
-                    return ""
-                return track_name[1];
-        
+        # source: https://askubuntu.com/questions/813951/how-can-i-query-mplayer-about-the-currently-playing-song
+        child = process_find_lowest("SD",sink)
+        if child == "":
+            return ""
+        result = subprocess.check_output("lsof -c mplayer | grep --color=never -e '"+str(child)+".*/web-server/MUSIC/' -e '/web-server/MUSIC/.*"+str(child)+"' | awk -F\"/\" '{ print $NF; }' | cut -d'.' -f1", shell=True)
+        return str(result.decode().strip())
     except subprocess.CalledProcessError as e:
         return "procs error:\n" + repr(e)
     
@@ -1013,10 +1151,54 @@ def process_find_lowest(source="", sink=""):
 ##########################
 # AUDIO SOURCES PLAYERS START COMMANDS
 ##########################
+
+def raspi_playSD(sink, path, options):
+    if process_source_playing("SD") == "":
+        try:
+            """
+            mplayer './MUSIC/'*.*
+            mplayer -loop 0 -shuffle ./MUSIC/*.*
+
+            mkfifo /tmp/mplayercontrol.pipe
+            [[ -p "/tmp/mplayercontrol.pipe" ]]
+            rm /tmp/mplayercontrol.pipe
+
+            https://stackoverflow.com/questions/52462131/how-to-make-mplayer-continue-after-pausing-it-via-a-named-pipe
+            https://stackoverflow.com/questions/65537920/mplayer-change-track-play-pause-with-command-line
+            https://stackoverflow.com/questions/20245675/how-to-test-if-a-named-pipe-exists
+            http://www.mplayerhq.hu/DOCS/tech/slave.txt
+            
+            next
+            echo "pt_step 1" > /tmp/mplayercontrol.pipe
+
+            previous
+            echo "pt_step -1" > /tmp/mplayercontrol.pipe
+
+            toggle pause/resume
+            echo "pause" > /tmp/mplayercontrol.pipe
+
+            disable loop
+            loop -1
+            """
+            # create named pipe if doesn't exist
+            filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'mplayercontrol.pipe')
+            if os.system('[ -p "'+filename+'" ]') != 0:
+                os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 rm "+filename)
+                os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mkfifo "+filename)
+            
+            play_command = "echo 'SD' ; echo '"+sink+"' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -slave -input file="+filename+" "+options+" -ao pulse::"+sink+" "+path+""
+            subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+            return 'Started Playing...'
+        except subprocess.CalledProcessError as e:
+            return "Playing error:\n" + repr(e)
+    return 'Still playing!'
+
+
+
 def raspi_playURL(sink, url):
     if process_source_playing("URL") == "":
         try:
-            play_command = "echo 'URL' ; echo '"+sink+"' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::"+sink+" "+url+""
+            play_command = "echo 'URL' ; echo '"+sink+"' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mplayer -ao pulse::"+sink+" '"+url+"'"
             subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
             return 'Started Playing...'
         except subprocess.CalledProcessError as e:
@@ -1237,31 +1419,6 @@ def raspi_volume():
     return output
 
 
-
-
-
-
-
-
-## TODO: wait for song end
-def run_cmd_background(cmd):
-    data = {'cmd': cmd}
-    thr = Thread(target=run_async_func, args=[app, data])
-    thr.start()
-    return thr
-
-def run_async_func(app, data):
-    global AUDIOplayingProcess
-
-    with app.app_context():
-    # Your working code here!
-        return_code = subprocess.Popen(data['cmd'], cwd=os.path.dirname(os.path.realpath(__file__)))
-        if return_code == 0:
-            print("Command executed successfully.")
-        else:
-            print("Command failed with return code", return_code)
-
-        AUDIOplayingProcess = None
 
 
 
@@ -1493,7 +1650,7 @@ def main():
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd load-module module-null-sink sink_name=TransmittersSink")
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-sink-proplist TransmittersSink device.description=TransmittersSink")
         os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pacmd update-source-proplist TransmittersSink.monitor device.description='Monitor of TransmittersSink'")
-        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink "+web_config_get_value("AU_default"))
+        os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink "+config_file_get_value(web_file, "AU_default"))
         
         ## create config dir
         os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
