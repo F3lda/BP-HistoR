@@ -236,7 +236,7 @@ def index():
                 </span>
                     
                 <span class="controls-{sink["id"]}-BT" style="display:none">
-                    <input type="text" name="AU_controls-BT-name[{sink["id"]}]" value="{sink_config["AU_controls-BT-name"]}" placeholder="BT NAME" title="BT NAME">
+                    <!---<input type="text" name="AU_controls-BT-name[{sink["id"]}]" value="{sink_config["AU_controls-BT-name"]}" placeholder="BT NAME" title="BT NAME">--->
                     <input type="submit" name="BT-start" value="ON" title="play">
                     <input type="submit" name="BT-stop" value="OFF" title="stop">
                 </span>
@@ -343,6 +343,9 @@ def index():
     ##########################
     dropdowndisplay += """
     <h2>Settings</h2>
+    <h3>Central STOPS</h3>
+    Stop all Audio players: <a href="./AUstop">STOP AUDIO PLAYERS</a><br><br>
+    Stop all Transmitters: <a href="./TRstop">STOP TRANSMITTERS</a><br>
     <h3>Network state</h3>
     IP addresses:
     """
@@ -648,6 +651,13 @@ def raspi_audiooutputs():
             with open(audio_conf['AU_sink['+str(sinkid)+']']+'.conf', "r+") as file:
                 for item in list(request.form.keys()):
                     if item.endswith('['+str(sinkid)+']'):
+                        # on AUDIO SOURCE change -> check if current sink is not playing
+                        if item.startswith('AU_source'):
+                            sink_playing = process_sink_playing(audio_conf['AU_sink['+str(sinkid)+']'])
+                            if sink_playing != '' and sink_playing != audio_conf[item]:
+                                return "ERROR: can't change AUDIO SOURCE while it is playing!"
+                        
+                        
                         # add new line
                         new_content += item.removesuffix('['+str(sinkid)+']')+'='+audio_conf[item]+'\n'
                         
@@ -739,7 +749,7 @@ def raspi_audiooutputsbutton():
         
         
         
-        ## TODO audiosources control buttons
+        ### Audiosources control buttons
         
         ### SDcard player
         if (audio_conf["button"] == "SD-pause-resume"):
@@ -810,6 +820,24 @@ def raspi_audiooutputsbutton():
                 return "FM player stopped!"
             else:
                 return "Nothing stopped - FM player is not playing or not on this SINK!"
+        
+        
+        
+        ### Bluetooth
+        if (audio_conf["button"] == "BT-start"):
+            # check if the same AUDIO SOURCE is already playing
+            sink_uuid = process_source_playing("BT")
+            if (sink_uuid != ""):
+                return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
+            else:
+                return raspi_playBT(audio_conf["sink_uuid"])
+        if (audio_conf["button"] == "BT-stop"):
+            # check if the BT player is already playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.system("sudo kill -SIGINT "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
+                return "Bluetooth stopped!"
+            else:
+                return "Nothing stopped - Bluetooth is not playing or not on this SINK!"
         
         
         
@@ -937,6 +965,11 @@ def raspi_sdcard():
             return 'ERROR: sink doesnt exists!'+repr(sink)
         if options == None:
             options = ""
+            
+        # check if the same AUDIO SOURCE is already playing
+        sink_uuid = process_source_playing("SD")
+        if (sink_uuid != ""):
+            return '<script>alert("SD audio source is already playing on sink: '+sink_uuid+'"); location.href = "./";</script>'
         
         
         path = './MUSIC'+file.removeprefix('.')
@@ -1025,7 +1058,7 @@ def raspi_transmitters():
         
 
         
-        return ''+repr("TS_live" in trans_conf)
+        return ''#+repr("TS_live" in trans_conf)
 
     return 'ERORR: invalid request!'
 
@@ -1332,6 +1365,16 @@ def raspi_playDAB(sink, channel, station=''):
 
 
 
+def raspi_playBT(sink):
+    if process_source_playing("BT") == "":
+        try:
+            play_command = "echo 'BT' ; echo '"+sink+"' ; ./LIBS/promiscuous-bluetooth-audio-sinc/a2dp-agent"
+            subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+            return 'Started Playing...'
+        except subprocess.CalledProcessError as e:
+            return "Playing error:\n" + repr(e)
+    return 'Still playing!'
+
 
 
 
@@ -1433,7 +1476,7 @@ def raspi_playDABradio():
 
 
 @app.route('/playBT')
-def raspi_playBT():
+def raspi_playBTstart():
     global AUDIOplayingProcess
 
     if AUDIOplayingProcess != None:
@@ -1461,6 +1504,7 @@ def raspi_stop():
             #AUDIOplayingProcess.terminate()
         os.system("sudo killall mplayer")
         os.system("sudo killall rtl_fm")
+        os.system("sudo killall terminal-DAB-rtlsdr")
         os.system("sudo killall -SIGINT a2dp-agent")
         #os.system("sudo killall ffmpeg")
         return 'Stopped!'
@@ -1549,26 +1593,19 @@ def raspi_volume():
 
 # TRANSMITTERS
 ##########################
-
-FMAMtransmittingProcess = None
-
 @app.route('/transFM')
 def raspi_transFM(sink="TransmittersSink", freq="89.0", desc_short="HistoRPi", desc_long="HistoRPi: live FM-RDS transmission from the RaspberryPi"):
-    global FMAMtransmittingProcess
-
-    if FMAMtransmittingProcess != None:
-        if FMAMtransmittingProcess.poll() != None:
-            FMAMtransmittingProcess = None
-
-    if FMAMtransmittingProcess == None:
-
-        ## https://unix.stackexchange.com/questions/457946/pactl-works-in-userspace-not-as-root-on-i3
-        ## user id: id -u
-        ## user id = 1000
-        play_command = "echo 'transFM' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i "+sink+".monitor -ac 2 -f wav - | sudo ./LIBS/rpitx/pifmrds -ps '"+desc_short+"' -rt '"+desc_long+"' -freq "+freq+" -audio -"
-        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
-
-        return 'Started transmitting...'
+    if os.system("ps cax | grep pifmrds") != 0:
+        try:
+            ## https://unix.stackexchange.com/questions/457946/pactl-works-in-userspace-not-as-root-on-i3
+            ## user id: id -u
+            ## user id = 1000
+            play_command = "echo 'transFM' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i "+sink+".monitor -ac 2 -f wav - | sudo ./LIBS/rpitx/pifmrds -ps '"+desc_short+"' -rt '"+desc_long+"' -freq "+freq+" -audio -"
+            subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
+            
+            return 'Started transmitting...'
+        except subprocess.CalledProcessError as e:
+            return "Transmitting error:\n" + repr(e)
     return 'Still transmitting!'
 
 
@@ -1578,24 +1615,28 @@ def raspi_transAM(sink="TransmittersSink", freq="1.6"):
     freq *= 1000
     freq = '%.0f' % freq
     
-    global FMAMtransmittingProcess
+    if os.system("ps cax | grep rpitx") != 0:
+        try:
+            ## https://unix.stackexchange.com/questions/457946/pactl-works-in-userspace-not-as-root-on-i3
+            ## user id: id -u
+            ## user id = 1000
+            play_command = "echo 'transAM' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i "+sink+".monitor -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f "+freq
+            subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
 
-    if FMAMtransmittingProcess != None:
-        if FMAMtransmittingProcess.poll() != None:
-            FMAMtransmittingProcess = None
-
-    if FMAMtransmittingProcess == None:
-
-        ## https://unix.stackexchange.com/questions/457946/pactl-works-in-userspace-not-as-root-on-i3
-        ## user id: id -u
-        ## user id = 1000
-        play_command = "echo 'transAM' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f pulse -i "+sink+".monitor -ac 1 -ar 48000 -acodec pcm_s16le -f wav - | csdr convert_i16_f | csdr gain_ff 7000 | csdr convert_f_samplerf 20833 | sudo ./LIBS/rpitx/rpitx -i- -m RF -f "+freq
-        FMAMtransmittingProcess = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__))) # change working directory to this script path
-
-        return 'Started transmitting...'
+            return 'Started transmitting...'
+        except subprocess.CalledProcessError as e:
+            return "Transmitting error:\n" + repr(e)
     return 'Still transmitting!'
 
 
+
+
+
+
+
+
+
+FMAMtransmittingProcess = None
 @app.route('/transAM7000')
 def raspi_transAM7000():
     global FMAMtransmittingProcess
@@ -1662,6 +1703,26 @@ def raspi_transStop():
 ##########################
 # SETTINGS
 ##########################
+
+@app.route('/AUstop')
+def raspi_audiooutputsStop():
+    if (os.system("ps cax | grep mplayer") == 0 or os.system("ps cax | grep rtl_fm") == 0 or os.system("ps cax | terminal-DAB-rtlsdr") == 0 or os.system("ps cax | grep a2dp-agent") == 0):
+        os.system("sudo killall mplayer")
+        os.system("sudo killall rtl_fm")
+        os.system("sudo killall terminal-DAB-rtlsdr")
+        os.system("sudo killall -SIGINT a2dp-agent")
+        return 'Stopped!'
+    return 'Nothing playing!'
+
+
+@app.route('/TRstop')
+def raspi_transmittersStop():
+    if (os.system("ps cax | grep pifmrds") == 0 or os.system("ps cax | grep rpitx") == 0):
+        os.system("sudo killall pifmrds")
+        os.system("sudo killall rpitx")
+        return 'Stopped transmitting!'
+    return 'Nothing transmitting!'
+
 
 @app.route('/removewifi/<uuid>/ssid/<ssid>', strict_slashes=True)
 def raspi_removewifi(uuid="", ssid=""):
