@@ -44,6 +44,7 @@ def config_file_change_value(file, key, value):
     return value_changed
 
 
+
 def config_file_get_value(file, key):
     os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
     
@@ -74,6 +75,7 @@ def read_web_config():
     return file_items
 
 
+
 def check_autoplay():
     if config_file_get_value(web_file, "TS_autoplay") == '1':
         transmitter = config_file_get_value(web_file, "TS_trans")
@@ -82,6 +84,7 @@ def check_autoplay():
         elif transmitter == "AM":
             return raspi_transAM(config_file_get_value(web_file, "TS_source"), config_file_get_value(web_file, "TS_freq"))
     # TODO check audio outputs autoplays
+
 
 
 @app.route('/')
@@ -240,9 +243,11 @@ def index():
                 
                 <span class="controls-{sink["id"]}-DAB" style="display:none">
                     <input type="text" name="AU_controls-DAB-channel[{sink["id"]}]" value="{sink_config["AU_controls-DAB-channel"]}" placeholder="CHANNEL" title="CHANNEL">
-                    <input type="text" name="AU_controls-DAB-station[{sink["id"]}]" value="{sink_config["AU_controls-DAB-station"]}" placeholder="STATION" title="STATION">
+                    <!---<input type="text" name="AU_controls-DAB-station[{sink["id"]}]" value="{sink_config["AU_controls-DAB-station"]}" placeholder="STATION" title="STATION">--->
                     <input type="submit" name="DAB-play" value="|>" title="play">
                     <input type="submit" name="DAB-stop" value="O" title="stop">
+                    <input type="submit" name="DAB-tuneup" value="/\\" title="tune up">
+                    <input type="submit" name="DAB-tunedown" value="\/" title="tune down">
                 </span>
             
             </td>
@@ -438,6 +443,18 @@ def index():
 
 
     <script>
+        // Disabling form submit by enter key
+        // Source: https://stackoverflow.com/a/37241980
+        window.addEventListener('keydown',function(e) {
+            if (e.keyIdentifier=='U+000A' || e.keyIdentifier=='Enter' || e.keyCode==13) {
+                if (e.target.type != 'textarea' && e.target.type != 'submit' && e.target.type != 'button') {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        }, true);
+    
+    
         // automatically change audio source controls onload
         window.addEventListener("load", function(event) {
             var list = document.getElementsByClassName("cls-controls") ;
@@ -607,11 +624,14 @@ def raspi_audiooutputs():
         output = ""
         
         
-        
+        sinks = []
+        for item in list(request.form.keys()):
+            if item.startswith("AU_sink["):
+                sinks.append(item.removeprefix("AU_sink[").removesuffix("]"))
+
+
         ## save AudioOutputs data
-        sinkid = 0
-        while 'AU_sink['+str(sinkid)+']' in list(request.form.keys()):
-            
+        for sinkid in sinks:
             
             
             output += ' AU_sink['+str(sinkid)+']; '
@@ -653,10 +673,6 @@ def raspi_audiooutputs():
                 
                 output += repr(file_changed)
             
-            
-            
-            sinkid += 1
-        
         
 
         ## check default sink changed and save to web config
@@ -711,15 +727,17 @@ def raspi_audiooutputsbutton():
     if request.method == 'POST':
         audio_conf = dict(zip(list(request.form.keys()), list(request.form.values())))
         
-        # check if the same AUDIO SOURCE is already playing
-        """sink_uuid = process_source_playing(audio_conf["source"])
-        if (sink_uuid != ""):
-            return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid"""
-        
-        # when BLUETOOTH start -> chekc if the SINK is DEFAULT
+
+
+        # when BLUETOOTH start -> check if the SINK is DEFAULT
         if (audio_conf["button"] == "BT-start" and audio_conf["sink_uuid"] != audio_conf["AU_default"]):
             return "Bluetooth can play only on the default SINK!"
             
+        # when DAB player start -> check if the SINK is DEFAULT
+        if (audio_conf["button"] == "DAB-play" and audio_conf["sink_uuid"] != audio_conf["AU_default"]):
+            return "DAB radio can play only on the default SINK!"
+        
+        
         
         ## TODO audiosources control buttons
         
@@ -758,6 +776,7 @@ def raspi_audiooutputsbutton():
                 return "Nothing stopped - SDcard player is not playing or not on this SINK!"
         
         
+        
         ### URL player
         if (audio_conf["button"] == "URL-play"):
             # check if the same AUDIO SOURCE is already playing
@@ -791,6 +810,40 @@ def raspi_audiooutputsbutton():
                 return "FM player stopped!"
             else:
                 return "Nothing stopped - FM player is not playing or not on this SINK!"
+        
+        
+        
+        ### DAB player
+        if (audio_conf["button"] == "DAB-play"):
+            # check if the same AUDIO SOURCE is already playing
+            sink_uuid = process_source_playing("DAB")
+            if (sink_uuid != ""):
+                return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
+            else:
+                return raspi_playDAB(audio_conf["sink_uuid"], audio_conf["AU_controls-DAB-channel["+audio_conf["sink_id"]+"]"]) #, audio_conf["AU_controls-DAB-station["+audio_conf["sink_id"]+"]"]
+        if (audio_conf["button"] == "DAB-stop"):
+            # check if the DAB player is already playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.system("sudo kill -9 "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
+                return "DAB player stopped!"
+            else:
+                return "Nothing stopped - DAB player is not playing or not on this SINK!"
+        if (audio_conf["button"] == "DAB-tuneup"):
+            # check if the DAB player is playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+                os.system("echo -n $'\e'\[A > dabin.pipe")
+                return ""
+            else:
+                return "Can't tune up - DAB player is not playing or not on this SINK!"
+        if (audio_conf["button"] == "DAB-tunedown"):
+            # check if the DAB player is playing
+            if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
+                os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+                os.system("echo -n $'\e'\[B > dabin.pipe")
+                return ""
+            else:
+                return "Can't tune down - DAB player is not playing or not on this SINK!"
         
         
         
@@ -1219,6 +1272,65 @@ def raspi_playFM(sink, freq):
 
 
 
+def raspi_playDAB(sink, channel, station=''):
+    if process_source_playing("DAB") == "":
+        try:
+            # create named pipe if doesn't exist
+            pipein = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dabin.pipe')
+            if os.system('[ -p "'+pipein+'" ]') != 0:
+                os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 rm "+pipein)
+                os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mkfifo "+pipein)
+                
+            # create named pipe if doesn't exist
+            pipeout = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dabout.pipe')
+            if os.system('[ -p "'+pipeout+'" ]') != 0:
+                os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 rm "+pipeout)
+                os.system("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 mkfifo "+pipeout)
+            
+            
+            ## play_command = "echo 'DAB' ; echo '"+sink+"' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C "+channel+" -P '"+station+"' -D 60 -d 60 | sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f s16le -ac 1 -ar 48000 -i - -ac 2 -f pulse -device '"+sink+"' 'stream-title'"
+
+            play_command = "echo 'DAB' ; echo '"+sink+"' ; export TERM=linux ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 terminal-DAB-rtlsdr -C "+channel+" -Q 0<dabin.pipe"
+            proc = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__)), stdout=subprocess.PIPE) # change working directory to this script path
+
+            
+            ensemble = ""
+            data = ""
+            byte = None
+            while True:
+                byte = proc.stdout.read(1)
+                if not byte:
+                    break
+                #print("byte:", byte)
+                if byte == b'*':
+                    os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+                    os.system("echo -n $'\e'\[A > dabin.pipe")
+                    # https://stackoverflow.com/questions/17002403/simulate-up-arrow-press-in-linux
+                    # https://www.linuxquestions.org/questions/linux-newbie-8/bash-echo-the-arrow-keys-825773/
+                    break
+                    
+                try:
+                    if byte != b'\x1b':
+                        data += str(byte.decode("utf-8"))
+                except:
+                    pass
+                    
+                if data.endswith("[H"):
+                    if "Ensemble: " in data:
+                        ensemble = (data.split("Ensemble: ")[1]).removesuffix("[H")
+                    print(data)
+                    data = ""
+            #print("DONE")
+
+            
+            if byte == b'*':
+                return 'Started Playing...\nMultiplex: '+ensemble
+            return 'Playing stoped: error!'
+        except subprocess.CalledProcessError as e:
+            return "Playing error:\n" + repr(e)
+    return 'Still playing!'
+
+
 
 
 
@@ -1300,7 +1412,7 @@ def raspi_playFMradio():
 
 
 @app.route('/playDAB')
-def raspi_playDAB():
+def raspi_playDABradio():
     global AUDIOplayingProcess
 
     if AUDIOplayingProcess != None:

@@ -1,0 +1,92 @@
+echo 'FM' ; echo 'sinkuuid' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 rtl_fm -f 105.5e6 -s 200000 -r 48000
+
+echo 'DAB' ; echo 'sinkuuid' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 12D -P 'CRo-BRNO' -D 60 -d 60 | sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f s16le -ac 1 -ar 48000 -i - -ac 2 -f pulse -device alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo 'stream-title'
+
+dab-rtlsdr-4 -C 8A -P "DAB" -D 60 -d 60 | aplay -r 48000 -f S16_LE -t raw -c 2
+
+
+echo 'DAB' ; echo 'sinkuuid' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C 12D -P 'CRo-BRNO' -D 60 -d 60 | sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f s16le -ac 1 -ar 48000 -i - -ac 2 -f pulse -device alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo 'stream-title'
+
+
+file=test.pipe
+
+while IFS= read -r cmd; do
+    printf '%s\n' "$cmd"
+done < "$file"
+
+cat file.txt | while read CMD; do echo $CMD; done
+
+
+mkfifo p0 p1
+bash 0<p0 1>p1
+
+terminal-DAB-rtlsdr -C 8A -C 12D -Q 0<dabin.pipe
+terminal-DAB-rtlsdr -C 8A -C 12D -Q 2>test.pipe
+terminal-DAB-rtlsdr -C 8A -Q 0<dabin.pipe 1>dabout.pipe
+
+xargs -a file.txt -n 1 echo -en "$1\n" | sed 's/\x1b//g'
+xargs -a file.txt -n 1 echo -en "$1\n" | sed 's/[\x01-\x1F\x7F]//g'
+https://superuser.com/questions/1494557/interactive-shell-through-named-pipe
+https://stackoverflow.com/a/12430414
+https://stackoverflow.com/questions/6534556/how-to-remove-and-all-of-the-ansi-escape-sequences-in-a-file-using-linux-she
+
+
+
+xargs -a test.pipe -n 1 echo -en "$1\n" | sed 's/\x1b//g'
+xargs -a test.pipe -n 1 echo -en "$1\n" | sed -r  's/\[\(;*[0-9][0-9]*\)*[fhlmpsuABCDEFGHJKST]//g'
+
+xargs -a test.pipe -n 1 echo -en "$1\n" | sed -r 's/\x1b\[[0-9;]*m?//g'
+xargs -a test.pipe -n 1 echo -en "$1\n" | sed -r 's/\x1b\[[^@-~]*[@-~]//g'
+
+
+\x1b\[[0-9;]*;*[0-9;]*H?
+
+sed -E 's/\x1b\H?/\n/g;t'
+
+sed -E 's/\x1b\[([0-9;]*;[0-9;]*H)?/\n/g;t'
+
+
+sed -E 's/\x1b\[[0-9;]*;[0-9;]*H?/\n/g;t'
+
+
+sed -E 's/\x1b\[(([0-9;]*m?)|([0-9;]*H?))/\n/g;t'
+
+
+
+
+import os
+import errno
+
+FIFO = 'test.pipe'
+
+
+line = ""
+
+print("Opening FIFO...")
+with open(FIFO) as fifo:
+    print("FIFO opened")
+    while True:
+        data = fifo.read(1)
+        line += data
+        if len(data) == 0:
+            print("Writer closed")
+            break
+        if data == "\n":
+            print('Read: "{0}"'.format(line))
+            line = ""
+        
+
+
+
+
+
+
+
+cat > test.pipe &
+
+echo -n $'\e'\[B > test.pipe
+echo -n $'\e'\[A > test.pipe
+
+https://stackoverflow.com/questions/17002403/simulate-up-arrow-press-in-linux
+https://www.linuxquestions.org/questions/linux-newbie-8/bash-echo-the-arrow-keys-825773/
+
