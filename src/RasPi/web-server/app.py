@@ -7,6 +7,7 @@ from pathlib import Path
 import urllib.parse
 from shutil import rmtree
 import tempfile
+from multiprocessing import Process
 # user repr() as var_dump()
 
 
@@ -21,6 +22,7 @@ web_file = "web.conf"
 def list_join_span(array, separator, span):
     # https://stackoverflow.com/questions/1621906/is-there-a-way-to-split-a-string-by-every-nth-separator-in-python
     return [separator.join(array[i:i+span]) for i in range(0, len(array), span)]
+
 
 
 def config_file_change_value(file, key, value):
@@ -76,14 +78,125 @@ def read_web_config():
 
 
 
-def check_autoplay():
+def audio_get_sinks(default_sink):
+    try:
+        device_sinks = []
+    
+        result = subprocess.check_output("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl list sinks | grep --color=never 'Sink \|^[[:space:]]Volume: \|^[[:space:]]Description: \|^[[:space:]]Name: \|^[[:space:]]State: '", shell=True)
+        result = result.decode().strip()
+        result = result.split('\n')
+        curr_sink = 0
+        
+        sink_vars = ["id", "uuid", "default", "name", "state", "volume"]
+        device_sink = {key: '' for key in sink_vars}
+        for i, line in enumerate(result):
+            if line.startswith('Sink #'):
+                if curr_sink != int(line.removeprefix('Sink #')):
+                    device_sinks.append(device_sink.copy())
+                    device_sink.clear()
+                    device_sink = {key: '' for key in sink_vars}
+                    curr_sink += 1
+                device_sink["id"] = line.removeprefix('Sink #')
+            else:
+                line = line.strip()
+                if line.startswith('State: '):
+                    line = line.removeprefix('State: ')
+                    device_sink["state"] = line
+                elif line.startswith('Name: '):
+                    line = line.removeprefix('Name: ')
+                    if line == default_sink:
+                        device_sink["default"] = 'checked'
+                    device_sink["uuid"] = line
+                elif line.startswith('Description: '):
+                    line = line.removeprefix('Description: ')
+                    device_sink["name"] = line
+                elif line.startswith('Volume: '):
+                    line = line.split('/')
+                    if len(line) > 1:
+                        line = line[1].strip().removesuffix('%')
+                    else:
+                        line = '(unknown)'
+                    device_sink["volume"] = line
+        device_sinks.append(device_sink.copy())
+        
+        return device_sinks
+
+    except subprocess.CalledProcessError as e:
+        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
+    return []
+
+
+
+def audio_get_default_sink():
+    try:
+        result = subprocess.check_output("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl info | grep --color=never 'Default Sink: '", shell=True)
+        default_sink = result.decode().strip().removeprefix("Default Sink: ")
+        return default_sink
+    except subprocess.CalledProcessError as e:
+        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
+    return ''
+
+
+
+def check_autoplays():
+    # Transmitters check autoplay
     if config_file_get_value(web_file, "TS_autoplay") == '1':
         transmitter = config_file_get_value(web_file, "TS_trans")
         if transmitter == "FM":
-            return raspi_transFM(config_file_get_value(web_file, "TS_source"), config_file_get_value(web_file, "TS_freq"), config_file_get_value(web_file, "TS_desc-8ch"), config_file_get_value(web_file, "TS_desc-long"))
+            raspi_transFM(config_file_get_value(web_file, "TS_source"), config_file_get_value(web_file, "TS_freq"), config_file_get_value(web_file, "TS_desc-8ch"), config_file_get_value(web_file, "TS_desc-long"))
         elif transmitter == "AM":
-            return raspi_transAM(config_file_get_value(web_file, "TS_source"), config_file_get_value(web_file, "TS_freq"))
-    # TODO check audio outputs autoplays
+            raspi_transAM(config_file_get_value(web_file, "TS_source"), config_file_get_value(web_file, "TS_freq"))
+    
+    # check Audio Outputs autoplays
+    default_sink = audio_get_default_sink()
+    device_sinks = audio_get_sinks(default_sink)
+    print("\n\ncheck_autoplays\n\n")
+    started_audio_sources = ""
+    for sink in device_sinks:
+        os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+        os.chdir("audio_config")
+        
+        sink_config = {"AU_sink": sink["uuid"], "AU_volume": sink["volume"], "AU_source": 'SD', "AU_playing": '0', "AU_autoplay": '0', "AU_controls-SD-track": 'No track', "AU_controls-SD-repeat": '1', "AU_controls-SD-shuffle": '1', "AU_controls-URL-url": '', "AU_controls-FM-freq": '', "AU_controls-BT-name": '', "AU_controls-DAB-channel": '', "AU_controls-DAB-station": ''}
+
+        with open(sink["uuid"]+'.conf', "r+") as file:
+            for line in file:
+                line = line.strip()
+                item = line.split('=',1)
+                if len(item) == 2:
+                    sink_config[item[0]] = item[1]
+        
+        if sink_config["AU_autoplay"] == '1':
+            if sink_config["AU_source"] not in started_audio_sources: # only one instance of every Audio Source
+                started_audio_sources += ';'+sink_config["AU_source"]
+                if sink_config["AU_source"] == 'SD':
+                    # check file exists and add options
+                    os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
+                    path = sink_config["AU_controls-SD-track"].split("'")
+                    if len(path) > 2:
+                        if not os.path.exists(path[1]):
+                            continue
+                    
+                    options = ''
+                    if sink_config["AU_controls-SD-repeat"] == '1':
+                        options += "-loop 0 "
+                    if sink_config["AU_controls-SD-shuffle"] == '1':
+                        options += "-shuffle "
+                    
+                    raspi_playSD(sink_config["AU_sink"], sink_config["AU_controls-SD-track"], options)
+                elif sink_config["AU_source"] == 'URL':
+                    raspi_playURL(sink_config["AU_sink"], sink_config["AU_controls-URL-url"])
+                elif sink_config["AU_source"] == 'FM':
+                    raspi_playFM(sink_config["AU_sink"], sink_config["AU_controls-FM-freq"])
+                elif sink_config["AU_source"] == 'BT':
+                    # check if current sink is default
+                    if sink_config["AU_sink"] == default_sink:
+                        raspi_playBT(sink_config["AU_sink"])
+                elif sink_config["AU_source"] == 'DAB':
+                    # check if current sink is default
+                    if sink_config["AU_sink"] == default_sink:
+                        raspi_playDAB(sink_config["AU_sink"], sink_config["AU_controls-DAB-channel"])
+
+
 
 
 
@@ -125,55 +238,8 @@ def index():
         </tr>"""
 
 
-    default_sink = ''
-    try:
-        result = subprocess.check_output("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl info | grep --color=never 'Default Sink: '", shell=True)
-        default_sink = result.decode().strip().removeprefix("Default Sink: ")
-    except subprocess.CalledProcessError as e:
-        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
-
-    device_sinks = []
-    try:
-        result = subprocess.check_output("sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 pactl list sinks | grep --color=never 'Sink \|^[[:space:]]Volume: \|^[[:space:]]Description: \|^[[:space:]]Name: \|^[[:space:]]State: '", shell=True)
-        result = result.decode().strip()
-        result = result.split('\n')
-        curr_sink = 0
-        
-        sink_vars = ["id", "uuid", "default", "name", "state", "volume"]
-        device_sink = {key: '' for key in sink_vars}
-        for i, line in enumerate(result):
-            if line.startswith('Sink #'):
-                if curr_sink != int(line.removeprefix('Sink #')):
-                    device_sinks.append(device_sink.copy())
-                    device_sink.clear()
-                    device_sink = {key: '' for key in sink_vars}
-                    curr_sink += 1
-                device_sink["id"] = line.removeprefix('Sink #')
-            else:
-                line = line.strip()
-                if line.startswith('State: '):
-                    line = line.removeprefix('State: ')
-                    device_sink["state"] = line
-                elif line.startswith('Name: '):
-                    line = line.removeprefix('Name: ')
-                    if line == default_sink:
-                        device_sink["default"] = 'checked'
-                    device_sink["uuid"] = line
-                elif line.startswith('Description: '):
-                    line = line.removeprefix('Description: ')
-                    device_sink["name"] = line
-                elif line.startswith('Volume: '):
-                    line = line.split('/')
-                    if len(line) > 1:
-                        line = line[1].strip().removesuffix('%')
-                    else:
-                        line = '(unknown)'
-                    device_sink["volume"] = line
-        device_sinks.append(device_sink.copy())
-
-    except subprocess.CalledProcessError as e:
-        dropdowndisplay += "<pre>command '{}' return with error (code {}): {}</pre>".format(e.cmd, e.returncode, e.output)
-
+    default_sink = audio_get_default_sink()
+    device_sinks = audio_get_sinks(default_sink)
 
     for sink in device_sinks:
     
@@ -555,8 +621,21 @@ def index():
 
                 console.log("Success: " + result);
                 if (result != "") {
-                    alert(result); 
-                    //window.location.href = window.location.href.split('#')[0];//TODO if result is not empty refresh page OR TODO return result and check it outside the function
+                    const isError = result.toLowerCase().includes('error');
+                    if (!isError) {
+                        var forms = document.forms;
+                        for (var i = 0; i < forms.length; i++) {
+                            var elements = forms[i];
+                            for (var j = 0; j < elements.length; j++) {
+                                elements[j].disabled = true;
+                            }
+                        }
+                    }
+                    alert(result);
+                    if (!isError) {
+                        window.location.href = window.location.href.split('#')[0];
+                        // if result is not empty disable all forms elements and refresh page OR maybe return result and check it outside the function
+                    }
                 }
             } catch (error) {
                 console.error("Error: " + error);
@@ -726,7 +805,7 @@ def raspi_audiooutputs():
         return ''
         #return repr(sink_conf_changed)+output + repr(audio_conf)
 
-    return 'ERORR: wrong value!'
+    return 'ERROR: wrong value!'
 
 
 
@@ -741,11 +820,11 @@ def raspi_audiooutputsbutton():
 
         # when BLUETOOTH start -> check if the SINK is DEFAULT
         if (audio_conf["button"] == "BT-start" and audio_conf["sink_uuid"] != audio_conf["AU_default"]):
-            return "Bluetooth can play only on the default SINK!"
+            return "ERROR: Bluetooth can play only on the default SINK!"
             
         # when DAB player start -> check if the SINK is DEFAULT
         if (audio_conf["button"] == "DAB-play" and audio_conf["sink_uuid"] != audio_conf["AU_default"]):
-            return "DAB radio can play only on the default SINK!"
+            return "ERROR: DAB radio can play only on the default SINK!"
         
         
         
@@ -759,7 +838,7 @@ def raspi_audiooutputsbutton():
                 os.system('echo "pause" > mplayercontrol.pipe')
                 return ''
             else:
-                return "Nothing paused/resumed - SDcard player is not playing or not on this SINK!"
+                return "ERROR: Nothing paused/resumed - SDcard player is not playing or not on this SINK!"
         if (audio_conf["button"] == "SD-previous"):
             # check if the SDcard player is playing
             if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
@@ -767,7 +846,7 @@ def raspi_audiooutputsbutton():
                 os.system('echo "pt_step -1" > mplayercontrol.pipe')
                 return ''
             else:
-                return "No previous track - SDcard player is not playing or not on this SINK!"
+                return "ERROR: No previous track - SDcard player is not playing or not on this SINK!"
         if (audio_conf["button"] == "SD-next"):
             # check if the SDcard player is playing
             if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
@@ -775,7 +854,7 @@ def raspi_audiooutputsbutton():
                 os.system('echo "pt_step 1" > mplayercontrol.pipe')
                 return ''
             else:
-                return "No next track - SDcard player is not playing or not on this SINK!"
+                return "ERROR: No next track - SDcard player is not playing or not on this SINK!"
         
         if (audio_conf["button"] == "SD-stop"):
             # check if the SDcard player is already playing
@@ -783,7 +862,7 @@ def raspi_audiooutputsbutton():
                 os.system("sudo kill -9 "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
                 return "SDcard player stopped!"
             else:
-                return "Nothing stopped - SDcard player is not playing or not on this SINK!"
+                return "ERROR: Nothing stopped - SDcard player is not playing or not on this SINK!"
         
         
         
@@ -792,7 +871,7 @@ def raspi_audiooutputsbutton():
             # check if the same AUDIO SOURCE is already playing
             sink_uuid = process_source_playing("URL")
             if (sink_uuid != ""):
-                return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
+                return "ERROR: "+audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
             else:
                 return raspi_playURL(audio_conf["sink_uuid"], audio_conf["AU_controls-URL-url["+audio_conf["sink_id"]+"]"])
         if (audio_conf["button"] == "URL-stop"):
@@ -801,7 +880,7 @@ def raspi_audiooutputsbutton():
                 os.system("sudo kill -9 "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
                 return "URL player stopped!"
             else:
-                return "Nothing stopped - URL player is not playing or not on this SINK!"
+                return "ERROR: Nothing stopped - URL player is not playing or not on this SINK!"
         
         
         
@@ -810,7 +889,7 @@ def raspi_audiooutputsbutton():
             # check if the same AUDIO SOURCE is already playing
             sink_uuid = process_source_playing("FM")
             if (sink_uuid != ""):
-                return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
+                return "ERROR: "+audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
             else:
                 return raspi_playFM(audio_conf["sink_uuid"], audio_conf["AU_controls-FM-freq["+audio_conf["sink_id"]+"]"])
         if (audio_conf["button"] == "FM-stop"):
@@ -819,7 +898,7 @@ def raspi_audiooutputsbutton():
                 os.system("sudo kill -9 "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
                 return "FM player stopped!"
             else:
-                return "Nothing stopped - FM player is not playing or not on this SINK!"
+                return "ERROR: Nothing stopped - FM player is not playing or not on this SINK!"
         
         
         
@@ -828,7 +907,7 @@ def raspi_audiooutputsbutton():
             # check if the same AUDIO SOURCE is already playing
             sink_uuid = process_source_playing("BT")
             if (sink_uuid != ""):
-                return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
+                return "ERROR: "+audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
             else:
                 return raspi_playBT(audio_conf["sink_uuid"])
         if (audio_conf["button"] == "BT-stop"):
@@ -837,7 +916,7 @@ def raspi_audiooutputsbutton():
                 os.system("sudo kill -SIGINT "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
                 return "Bluetooth stopped!"
             else:
-                return "Nothing stopped - Bluetooth is not playing or not on this SINK!"
+                return "ERROR: Nothing stopped - Bluetooth is not playing or not on this SINK!"
         
         
         
@@ -846,7 +925,7 @@ def raspi_audiooutputsbutton():
             # check if the same AUDIO SOURCE is already playing
             sink_uuid = process_source_playing("DAB")
             if (sink_uuid != ""):
-                return audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
+                return "ERROR: "+audio_conf["source"]+ " audio source is already playing on sink: "+sink_uuid
             else:
                 return raspi_playDAB(audio_conf["sink_uuid"], audio_conf["AU_controls-DAB-channel["+audio_conf["sink_id"]+"]"]) #, audio_conf["AU_controls-DAB-station["+audio_conf["sink_id"]+"]"]
         if (audio_conf["button"] == "DAB-stop"):
@@ -855,7 +934,7 @@ def raspi_audiooutputsbutton():
                 os.system("sudo kill -9 "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
                 return "DAB player stopped!"
             else:
-                return "Nothing stopped - DAB player is not playing or not on this SINK!"
+                return "ERROR: Nothing stopped - DAB player is not playing or not on this SINK!"
         if (audio_conf["button"] == "DAB-tuneup"):
             # check if the DAB player is playing
             if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
@@ -863,7 +942,7 @@ def raspi_audiooutputsbutton():
                 os.system("echo -n $'\e'\[A > dabin.pipe")
                 return ""
             else:
-                return "Can't tune up - DAB player is not playing or not on this SINK!"
+                return "ERROR: Can't tune up - DAB player is not playing or not on this SINK!"
         if (audio_conf["button"] == "DAB-tunedown"):
             # check if the DAB player is playing
             if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
@@ -871,13 +950,13 @@ def raspi_audiooutputsbutton():
                 os.system("echo -n $'\e'\[B > dabin.pipe")
                 return ""
             else:
-                return "Can't tune down - DAB player is not playing or not on this SINK!"
+                return "ERROR: Can't tune down - DAB player is not playing or not on this SINK!"
         
         
         
         return repr(audio_conf)+" - "+process_source_playing(audio_conf["source"])
     
-    return 'ERORR: wrong value!'
+    return 'ERROR: wrong value!'
 
 
 
@@ -969,7 +1048,7 @@ def raspi_sdcard():
         # check if the same AUDIO SOURCE is already playing
         sink_uuid = process_source_playing("SD")
         if (sink_uuid != ""):
-            return '<script>alert("SD audio source is already playing on sink: '+sink_uuid+'"); location.href = "./";</script>'
+            return '<script>alert("ERROR: SD audio source is already playing on sink: '+sink_uuid+'"); location.href = "./";</script>'
         
         
         path = './MUSIC'+file.removeprefix('.')
@@ -1060,7 +1139,7 @@ def raspi_transmitters():
         
         return ''#+repr("TS_live" in trans_conf)
 
-    return 'ERORR: invalid request!'
+    return 'ERROR: invalid request!'
 
 
 
@@ -1277,7 +1356,7 @@ def raspi_playSD(sink, path, options):
             return 'Started Playing...'
         except subprocess.CalledProcessError as e:
             return "Playing error:\n" + repr(e)
-    return 'Still playing!'
+    return 'ERROR: Still playing!'
 
 
 
@@ -1289,7 +1368,7 @@ def raspi_playURL(sink, url):
             return 'Started Playing...'
         except subprocess.CalledProcessError as e:
             return "Playing error:\n" + repr(e)
-    return 'Still playing!'
+    return 'ERROR: Still playing!'
 
 
 
@@ -1301,7 +1380,7 @@ def raspi_playFM(sink, freq):
             return 'Started Playing...'
         except subprocess.CalledProcessError as e:
             return "Playing error:\n" + repr(e)
-    return 'Still playing!'
+    return 'ERROR: Still playing!'
 
 
 
@@ -1361,7 +1440,7 @@ def raspi_playDAB(sink, channel, station=''):
             return 'Playing stoped: error!'
         except subprocess.CalledProcessError as e:
             return "Playing error:\n" + repr(e)
-    return 'Still playing!'
+    return 'ERROR: Still playing!'
 
 
 
@@ -1373,7 +1452,7 @@ def raspi_playBT(sink):
             return 'Started Playing...'
         except subprocess.CalledProcessError as e:
             return "Playing error:\n" + repr(e)
-    return 'Still playing!'
+    return 'ERROR: Still playing!'
 
 
 
@@ -1606,7 +1685,7 @@ def raspi_transFM(sink="TransmittersSink", freq="89.0", desc_short="HistoRPi", d
             return 'Started transmitting...'
         except subprocess.CalledProcessError as e:
             return "Transmitting error:\n" + repr(e)
-    return 'Still transmitting!'
+    return 'ERROR: Still transmitting!'
 
 
 @app.route('/transAM')
@@ -1626,7 +1705,7 @@ def raspi_transAM(sink="TransmittersSink", freq="1.6"):
             return 'Started transmitting...'
         except subprocess.CalledProcessError as e:
             return "Transmitting error:\n" + repr(e)
-    return 'Still transmitting!'
+    return 'ERROR: Still transmitting!'
 
 
 
@@ -1810,6 +1889,20 @@ def raspi_shutdown():
 ##########################
 # MAIN
 ##########################
+@app.route('/startup')
+def raspi_startup():
+    ### this function runs right after the Flask starts and runs on it's process
+    
+    ## check autoplays
+    check_autoplays()
+
+
+def raspi_run_startup():
+    time.sleep(1)
+    while os.system("curl 127.0.0.1/startup") != 0:
+        time.sleep(1)
+
+
 def main():
     # commands to run before webserver starts
 
@@ -1831,8 +1924,9 @@ def main():
         ## create music dir
         Path("./MUSIC/").mkdir(parents=True, exist_ok=True)
         
-        ## check autoplays
-        check_autoplay()
+        # create a process - run After startup function
+        process = Process(target=raspi_run_startup)
+        process.start() # run the process
 
 
 
