@@ -1,11 +1,13 @@
 #!/bin/bash
 
+# !!! if your RaspberryPi's username is not 'histor' -> replace all 'histor' in this file for your username
+
 #   !!! EDIT THESE LINES !!!
 ###############################
-WIFI_SSID="ACMOTO"
-WIFI_PASSWORD="vnuci321"
+WIFI_SSID=""
+WIFI_PASSWORD=""
 
-AP_SSID="HistoRAP"
+AP_SSID="HistoRPi"
 AP_PASSWORD="12345678"
 
 DEVICE_NAME="HistoRPi"
@@ -20,7 +22,7 @@ echo "| HistoRPi |";
 echo "|----------|";
 echo "Installing...";
 
-if [ "$WIFI_SSID" = "" ] || [ "$WIFI_PASSWORD" = "" ] || [ "$AP_SSID" = "" ] || [ "$AP_PASSWORD" = "" ] || [ "$DEVICE_NAME" = "" ]; then
+if [ "$AP_SSID" = "" ] || [ "$AP_PASSWORD" = "" ] || [ "$DEVICE_NAME" = "" ]; then
     echo "Failed!";
     echo "Installation file is not configured!";
     echo "Please, edit this file: $(pwd)/$(basename "$0")";
@@ -78,14 +80,204 @@ sudo raspi-config nonint do_boot_behaviour B2
 sudo apt-get update -y
 sudo apt-get upgrade -y
 
+# install git
+sudo apt-get install git -y
 # install flask
 sudo apt install python3-flask -y
 # install dnsmasq
 sudo apt install dnsmasq -y
-# install iwd
+# install iwd for network-manager
 sudo apt install iwd -y
 # install festival for IPtoSpeech
 sudo apt-get install festival -y
+
+
+## install PulseAudio
+sudo apt install pulseaudio -y
+sudo apt-get install pulseaudio-utils -y
+sudo apt install mplayer -y
+
+## install rtl_fm
+sudo apt-get install rtl-sdr -y
+
+## install bluetooth a2dp
+sudo apt install -y --no-install-recommends bluez-tools pulseaudio-module-bluetooth
+sudo apt install -y pulseaudio-module-bluetooth bluez python3-dbus
+# SETUP bluetooth a2dp SCRIPT
+echo "Editting file /home/histor/web-server/device.conf:";
+sudo mkdir -p /home/histor/web-server/LIBS/promiscuous-bluetooth-audio-sinc # The parameter mode specifies the permissions to use.
+sudo tee /home/histor/web-server/LIBS/promiscuous-bluetooth-audio-sinc/a2dp-agent <<EOF
+#!/usr/bin/python3
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Source: https://github.com/spmp/promiscuous-bluetooth-audio-sinc (file changed)
+
+from __future__ import absolute_import, print_function, unicode_literals
+
+import os
+import signal
+import dbus
+import dbus.service
+import dbus.mainloop.glib
+try:
+  from gi.repository import GLib
+except ImportError:
+  import gobject as GLib
+from functools import partial
+
+# The ENV VAR if set should be of the form 'hci0', 'hci1' etc.
+DEVICE_ENV_VAR = 'BLUETOOTH_ADAPTER'
+DEVICE_PATH_BASE = '/org/bluez/'
+DEVICE_DEFAULT = 'hci0'
+AGENT_INTERFACE = 'org.bluez.Agent1'
+AGENT_PATH = "/org/bluez/promiscuousAgent"
+
+def set_trusted(path):
+    props = dbus.Interface(bus.get_object("org.bluez", path),
+                    "org.freedesktop.DBus.Properties")
+    props.Set("org.bluez.Device1", "Trusted", True)
+
+class Rejected(dbus.DBusException):
+    _dbus_error_name = "org.bluez.Error.Rejected"
+
+class Agent(dbus.service.Object):
+        
+    exit_on_release = True
+
+    def set_exit_on_release(self, exit_on_release):
+        self.exit_on_release = exit_on_release
+
+    @dbus.service.method(AGENT_INTERFACE,
+                    in_signature="", out_signature="")
+    def Release(self):
+        print("Release")
+        if self.exit_on_release:
+            mainloop.quit()
+
+    @dbus.service.method(AGENT_INTERFACE,
+                    in_signature="os", out_signature="")
+    def AuthorizeService(self, device, uuid):
+        print(f"AuthorizeService ({device}, {uuid})")
+        if uuid.upper() == "0000110B-0000-1000-8000-00805F9B34FB" or uuid.upper() == "0000110A-0000-1000-8000-00805F9B34FB" or uuid.upper() == "0000110D-0000-1000-8000-00805F9B34FB": # AudioSink, AudioSource , A2DP (Advanced Audio Distribution Profile)
+            print("Authorized A2DP Service")
+            return
+        print("Rejecting non-A2DP Service")
+        raise Rejected("Connection rejected")
+
+    @dbus.service.method(AGENT_INTERFACE,
+                    in_signature="ou", out_signature="")
+    def RequestConfirmation(self, device, passkey):
+        print(f"RequestConfirmation ({device}, {passkey})")
+        print("Auto confirming...")
+
+    @dbus.service.method(AGENT_INTERFACE,
+                    in_signature="o", out_signature="s")
+    def RequestPinCode(self, device):
+        print(f"RequestPinCode '0000' from {device}")
+        set_trusted(device)
+        return "0000"
+
+    @dbus.service.method(AGENT_INTERFACE,
+                    in_signature="", out_signature="")
+    def Cancel(self):
+        print("Cancel")
+
+def quit(manager, mloop):
+    manager.UnregisterAgent(AGENT_PATH)
+    print("\nAgent unregistered")
+    
+    mloop.quit()
+    
+    
+    os.system("sudo rfkill block bluetooth")
+
+
+if __name__ == '__main__':
+    os.system("sudo rfkill unblock bluetooth")
+
+
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+
+    bus = dbus.SystemBus()
+
+    capability = "DisplayYesNo"
+
+    agent = Agent(bus, AGENT_PATH)
+
+    mainloop = GLib.MainLoop()
+
+    obj = bus.get_object("org.bluez", "/org/bluez")
+    
+    # Get the device from ENV_VAR if set
+    adapters=os.getenv(DEVICE_ENV_VAR, DEVICE_DEFAULT).split(",")
+    
+    for adapter in adapters:
+      
+      adapterPath = DEVICE_PATH_BASE + adapter
+    
+      # Set Discoverable and Pairable to always on
+      print(f"Setting {adapterPath} to 'discoverable' and 'pairable'...")
+      prop = dbus.Interface(bus.get_object("org.bluez", adapterPath), "org.freedesktop.DBus.Properties")
+      prop.Set("org.bluez.Adapter1", "DiscoverableTimeout", dbus.UInt32(0))
+      prop.Set("org.bluez.Adapter1", "PairableTimeout", dbus.UInt32(0))
+      prop.Set("org.bluez.Adapter1", "Discoverable", dbus.Boolean(True))
+      prop.Set("org.bluez.Adapter1", "Pairable", dbus.Boolean(True))
+
+    # Create the agent manager
+    manager = dbus.Interface(obj, "org.bluez.AgentManager1")
+    manager.RegisterAgent(AGENT_PATH, capability)
+    manager.RequestDefaultAgent(AGENT_PATH)
+
+    print("Agent registered")
+    
+    # Ensure that ctrl+c is caught properly
+    ## Assign the 'quit' function to a variable
+    mquit = partial(quit, manager=manager, mloop=mainloop)
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, mquit)
+
+    mainloop.run()
+EOF
+sudo chmod 777 /home/histor/web-server/LIBS/promiscuous-bluetooth-audio-sinc/a2dp-agent
+
+## install DAB terminal
+sudo apt-get install git cmake -y
+sudo apt-get install build-essential g++ -y
+sudo apt-get install pkg-config -y
+sudo apt-get install libsndfile1-dev -y
+sudo apt-get install libfftw3-dev -y
+sudo apt-get install portaudio19-dev -y
+sudo apt-get install zlib1g-dev -y
+sudo apt-get install libusb-1.0-0-dev -y
+sudo apt-get install libsamplerate0-dev -y
+sudo apt-get install curses -y
+sudo apt-get install libncurses5-dev -y
+
+#sudo apt-get install opencv-dev -y
+
+sudo apt-get install libfaad-dev -y
+#sudo apt-get install libfdk-aac-dev -y
+
+sudo apt install librtlsdr-dev -y
+
+cd /home/histor/web-server/LIBS
+sudo git clone https://github.com/JvanKatwijk/terminal-DAB-xxx
+cd terminal-DAB-xxx
+sudo mkdir build
+cd build
+sudo cmake .. -DRTLSDR=ON -DPICTURES=OFF #-DFAAD=OFF
+sudo make
+sudo make install
+
+## install SDR
+sudo apt install ffmpeg -y
+# install rpitx
+cd /home/histor/web-server/LIBS
+sudo git clone https://github.com/F5OEO/rpitx
+cd rpitx
+yes | sudo ./install.sh
+
+# install command for "list open files"
+sudo apt-get install lsof -y
+
 
 
 ### SETUP DNSMASQ
@@ -232,37 +424,8 @@ sudo systemctl start APconnection
 ### SETUP FLASK WEB SERVER
 echo "Editting file /home/histor/web-server/app.py:";
 sudo mkdir -p /home/histor/web-server # The parameter mode specifies the permissions to use.
-sudo tee /home/histor/web-server/app.py <<EOF
-from flask import Flask, render_template, render_template_string, request, redirect
-
-app = Flask(__name__)
-
-@app.route('/')
-def index():
-    #return render_template('index.html')
-    return 'Hello world! - ${AP_SSID} - ${AP_PASSWORD}'
-
-@app.route('/hello/<name>', strict_slashes=False)
-@app.route('/hello/<name>/<page>', strict_slashes=False)
-@app.route('/hello/<name>/filter/<filter>', strict_slashes=False)
-def hello(name,page="0",filter=""):
-    #page = request.args.get('page', default = 1, type = int)
-    if filter == "":
-        filter = request.args.get('filter', default = '*', type = str)
-    return render_template_string('<h1>Hello {{name}}! Page: {{str}}; Filter: {{filter}}</h1>', name=name, str=page, filter=filter)
-
-
-#https://stackoverflow.com/questions/14023864/flask-url-route-route-all-other-urls-to-some-function
-@app.errorhandler(404)
-def page_not_found(e):
-    # your processing here
-    #return 'Hello world! 404', 302
-    return redirect("/",code=302)
-
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=80)
-EOF
+sudo chmod 777 /home/histor/web-server
+sudo mv /home/histor/app.py /home/histor/web-server/app.py
 sudo chmod 777 /home/histor/web-server/app.py
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: LGPL-2.1-or-later
+# Source: https://github.com/spmp/promiscuous-bluetooth-audio-sinc (file changed)
 
 from __future__ import absolute_import, print_function, unicode_literals
 
