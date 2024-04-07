@@ -1232,6 +1232,11 @@ void loop() {
         AudioPlayerSDcardPlayTrack(NULL);
     }
 
+    // TODO DISPLAY on CHANGE function -> two vars -> display line1 and line2
+    // IP: + IP long -> remove IP:
+    // line2 long text -> move text to left
+    // replace lcd.print -> lcd_line1 strcpy()
+
 
 
     static unsigned long Timer1000 = 0;
