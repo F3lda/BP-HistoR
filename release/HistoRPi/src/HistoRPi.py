@@ -1,5 +1,5 @@
 """
- * @file app.py
+ * @file HistoRPi.py
  *
  * @brief HistoRPi - Audio streaming device for historic radio receivers
  * @date 2024-01-28
@@ -80,7 +80,7 @@ def index():
         os.chdir("audio_config")
 
         sink_config = {"AU_sink": sink["uuid"], "AU_volume": sink["volume"], "AU_source": 'SD', "AU_playing": '0', "AU_autoplay": '0', "AU_controls-SD-track": 'No track', "AU_controls-SD-repeat": '1', "AU_controls-SD-shuffle": '1', "AU_controls-URL-url": '', "AU_controls-FM-freq": '', "AU_controls-BT-name": '', "AU_controls-DAB-channel": '', "AU_controls-DAB-station": ''}
-        
+
         with open(sink["uuid"]+'.conf', "a+") as file:
             pass
         with open(sink["uuid"]+'.conf', "r+") as file:
@@ -1534,7 +1534,7 @@ def raspi_savewifi():
         os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
 
         new_content = ""
-        
+
         with open(conf_file, "a+") as file:
             pass
         with open(conf_file, "r+") as file:
@@ -1606,7 +1606,7 @@ def raspi_startup():
     Path("./audio_config/").mkdir(parents=True, exist_ok=True)
     ## create music dir
     Path("./MUSIC/").mkdir(parents=True, exist_ok=True)
-    
+
     ## check autoplays
     check_autoplays()
 

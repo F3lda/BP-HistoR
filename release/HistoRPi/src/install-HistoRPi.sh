@@ -1,4 +1,10 @@
 #!/bin/bash
+# * @file install-HistoRPi.sh
+# *
+# * @brief HistoRPi - Audio streaming device for historic radio receivers - installation file
+# * @date 2024-01-23
+# * @author F3lda (Karel Jirgl)
+# * @update 2024-04-07 (v1.0)
 
 # !!! if your RaspberryPi's username is not 'histor' -> replace all 'histor' in this file for your username
 
@@ -140,7 +146,7 @@ class Rejected(dbus.DBusException):
     _dbus_error_name = "org.bluez.Error.Rejected"
 
 class Agent(dbus.service.Object):
-        
+
     exit_on_release = True
 
     def set_exit_on_release(self, exit_on_release):
@@ -184,10 +190,10 @@ class Agent(dbus.service.Object):
 def quit(manager, mloop):
     manager.UnregisterAgent(AGENT_PATH)
     print("\nAgent unregistered")
-    
+
     mloop.quit()
-    
-    
+
+
     os.system("sudo rfkill block bluetooth")
 
 
@@ -206,14 +212,14 @@ if __name__ == '__main__':
     mainloop = GLib.MainLoop()
 
     obj = bus.get_object("org.bluez", "/org/bluez")
-    
+
     # Get the device from ENV_VAR if set
     adapters=os.getenv(DEVICE_ENV_VAR, DEVICE_DEFAULT).split(",")
-    
+
     for adapter in adapters:
-      
+
       adapterPath = DEVICE_PATH_BASE + adapter
-    
+
       # Set Discoverable and Pairable to always on
       print(f"Setting {adapterPath} to 'discoverable' and 'pairable'...")
       prop = dbus.Interface(bus.get_object("org.bluez", adapterPath), "org.freedesktop.DBus.Properties")
@@ -228,7 +234,7 @@ if __name__ == '__main__':
     manager.RequestDefaultAgent(AGENT_PATH)
 
     print("Agent registered")
-    
+
     # Ensure that ctrl+c is caught properly
     ## Assign the 'quit' function to a variable
     mquit = partial(quit, manager=manager, mloop=mainloop)
@@ -300,7 +306,7 @@ echo "Editting file /etc/dnsmasq.conf_ap:";
 sudo tee /etc/dnsmasq.conf_ap <<EOF
 interface=wlan0,eth0
 
-# set the IP address, where dnsmasq will listen on. 
+# set the IP address, where dnsmasq will listen on.
 listen-address=127.0.0.1,192.168.11.1
 
 # dnsmasq server domain
@@ -346,7 +352,7 @@ sudo systemctl restart dnsmasq
 ## CAPTIVE PORTAL INFO
 # android captive portal: https://www.reddit.com/r/paloaltonetworks/comments/191l28l/captive_portal_login_form_not_showing_on_android/
 # https://github.com/23ewrdtf/Captive-Portal/blob/master/dnsmasq.conf
-# https://www.reddit.com/r/networking/comments/t4webr/push_captive_portal_after_wifi_association/ 
+# https://www.reddit.com/r/networking/comments/t4webr/push_captive_portal_after_wifi_association/
 # https://datatracker.ietf.org/doc/html/rfc8910#name-ipv4-dhcp-option
 # https://datatracker.ietf.org/doc/html/rfc7710#section-2.1
 
@@ -529,7 +535,7 @@ while true; do
     if [ "\$(hostname -I)" = "" ]
     then
         echo "No network: \$(date)"
-        
+
         if [ \$attempts -lt 7 ]; then # 60 seconds
             attempts=\$((attempts+1))
         elif [ \$attempts -eq 7 ]; then
@@ -541,21 +547,21 @@ while true; do
             sudo systemctl restart dnsmasq
             # set up AP
             sudo nmcli connection up Hotspot
-            
+
             ## Set-up ethernet connection
             sudo nmcli connection modify Wired\ connection\ 1 ipv4.method manual ipv4.addresses 192.168.11.1/24 ipv4.gateway 192.168.11.1
-			
+
 			attempts=8
         fi
     else
         echo "I have network: $(date)"
-        
+
         # IP to Speech
         . $FILE || true
         if [ "$IPtoSPEECH" = true ] ; then
             echo  "My IP address is $(hostname -I)" | festival --tts
         fi
-        
+
         if [ $attempts -ne 0 ]; then
             attempts=0
         fi
