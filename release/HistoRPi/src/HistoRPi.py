@@ -1,5 +1,5 @@
 """
- * @file HistoRPi.py
+ * @file app.py
  *
  * @brief HistoRPi - Audio streaming device for historic radio receivers
  * @date 2024-01-28
@@ -80,7 +80,7 @@ def index():
         os.chdir("audio_config")
 
         sink_config = {"AU_sink": sink["uuid"], "AU_volume": sink["volume"], "AU_source": 'SD', "AU_playing": '0', "AU_autoplay": '0', "AU_controls-SD-track": 'No track', "AU_controls-SD-repeat": '1', "AU_controls-SD-shuffle": '1', "AU_controls-URL-url": '', "AU_controls-FM-freq": '', "AU_controls-BT-name": '', "AU_controls-DAB-channel": '', "AU_controls-DAB-station": ''}
-
+        
         with open(sink["uuid"]+'.conf', "a+") as file:
             pass
         with open(sink["uuid"]+'.conf', "r+") as file:
@@ -190,11 +190,11 @@ def index():
                 </label></div>
             </td>
             <td>
-                <input type="radio" name="TS_trans" value="FM" {'checked' if web_config["TS_trans"] == "FM" else ''}>
-                FM - <input type="text" name="TS_desc-8ch" value="{web_config["TS_desc-8ch"]}" size="8" maxlength="8">
-                - <input type="text" name="TS_desc-long" value="{web_config["TS_desc-long"]}">
+                <input type="radio" name="TS_trans" value="FM" {'checked' if (web_config["TS_trans"] == "FM" or web_config["TS_trans"] == "") else ''}>
+                FM - <input type="text" name="TS_desc-8ch" value="{web_config["TS_desc-8ch"]}" size="8" maxlength="8" title="title - max 8 chars" placeholder="title (8 ch)">
+                - <input type="text" name="TS_desc-long" value="{web_config["TS_desc-long"]}" title="description" placeholder="description">
             </td>
-            <td rowspan="2"><input type="number" name="TS_freq" min="1" max="120" value="{web_config["TS_freq"]}" size="8" /> MHz</td>
+            <td rowspan="2"><input type="number" name="TS_freq" min="1" max="120" value="{web_config["TS_freq"]}" size="8" placeholder="fr.eq" title="frequency (with dots)"/> MHz</td>
             <td rowspan="2" style="text-align: center;">
                 <select name="TS_source">
                     {''.join(["<option value='"+sink["uuid"]+"' selected>["+sink["id"]+"] "+sink["name"]+"</option>" if web_config["TS_source"] == sink["uuid"] else "<option value='"+sink["uuid"]+"'>["+sink["id"]+"] "+sink["name"]+"</option>" for sink in device_sinks])}
@@ -415,6 +415,7 @@ def index():
             }
 
             document.body.style.cursor = 'wait';
+            setFormsElementsDisabled(true);
             try {
                 const response = await fetch(url);
                 const result = await response.text();
@@ -427,6 +428,7 @@ def index():
                 console.error("Error: " + error + '\\nIf rebooting or shutting down: Success!');
                 alert("Error: " + error + '\\nIf rebooting or shutting down: Success!');
             }
+            setFormsElementsDisabled(false);
             document.body.style.cursor = 'auto';
         }
 
@@ -437,6 +439,7 @@ def index():
             }
 
             document.body.style.cursor = 'wait';
+            setFormsElementsDisabled(true);
             try {
                 const response = await fetch(action, {
                     method: "POST",
@@ -448,13 +451,7 @@ def index():
                 if (result != "") {
                     const isError = result.toLowerCase().includes('error');
                     if (!isError) {
-                        var forms = document.forms;
-                        for (var i = 0; i < forms.length; i++) {
-                            var elements = forms[i];
-                            for (var j = 0; j < elements.length; j++) {
-                                elements[j].disabled = true;
-                            }
-                        }
+                        setFormsElementsDisabled(true);
                     }
                     alert(result);
                     if (!isError) {
@@ -466,7 +463,29 @@ def index():
                 console.error("Error: " + error);
                 alert("Error: " + error);
             }
+            setFormsElementsDisabled(false);
             document.body.style.cursor = 'auto';
+        }
+        
+        disabledElements = [];
+        function setFormsElementsDisabled(disabled) {
+            if (disabled) {disabledElements = [];}
+            var forms = document.forms;
+            for (var i = 0; i < forms.length; i++) {
+                var elements = forms[i];
+                for (var j = 0; j < elements.length; j++) {
+                    if (disabled) {
+                        if (elements[j].disabled) {
+                            disabledElements.push(i+"-"+j);
+                        }
+                        elements[j].disabled = disabled;
+                    } else {
+                        if (!disabledElements.includes(i+"-"+j)) {
+                            elements[j].disabled = disabled;
+                        }
+                    }
+                }
+            }
         }
 
     </script>
@@ -945,6 +964,7 @@ def raspi_audiooutputsbutton():
             # check if the DAB player is already playing
             if (process_source_playing(audio_conf["source"]) == audio_conf["sink_uuid"]):
                 os.system("sudo kill -9 "+process_find_lowest(audio_conf["source"], audio_conf["sink_uuid"]))
+                os.system("sudo kill -9 "+process_find_lowest('DAB-pipe', 'ctlpipe'))
                 return "DAB player stopped!"
             else:
                 return "ERROR: Nothing stopped - DAB player is not playing or not on this SINK!"
@@ -1111,7 +1131,7 @@ def raspi_transmitters():
                     elif trans_conf["TS_trans"] == "AM":
                         return raspi_transAM(trans_conf["TS_source"], trans_conf["TS_freq"])
                 else:
-                    return raspi_transStop()
+                    return raspi_transmittersStop()
         form_keys.remove("TS_live")
 
 
@@ -1388,9 +1408,12 @@ def raspi_playDAB(sink, channel, station=''):
 
             ## play_command = "echo 'DAB' ; echo '"+sink+"' ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 dab-rtlsdr-4 -C "+channel+" -P '"+station+"' -D 60 -d 60 | sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 ffmpeg -use_wallclock_as_timestamps 1 -f s16le -ac 1 -ar 48000 -i - -ac 2 -f pulse -device '"+sink+"' 'stream-title'"
 
+            # spawn control pipe
+            subprocess.Popen("echo 'DAB-pipe' ; echo 'ctlpipe' ; cat > dabin.pipe",  shell = True, cwd=os.path.dirname(os.path.realpath(__file__)), stdin=subprocess.PIPE)
+            
             play_command = "echo 'DAB' ; echo '"+sink+"' ; export TERM=linux ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 terminal-DAB-rtlsdr -C "+channel+" -Q 0<dabin.pipe"
             proc = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__)), stdout=subprocess.PIPE) # change working directory to this script path
-
+            
 
             ensemble = ""
             data = ""
@@ -1534,7 +1557,7 @@ def raspi_savewifi():
         os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
 
         new_content = ""
-
+        
         with open(conf_file, "a+") as file:
             pass
         with open(conf_file, "r+") as file:
@@ -1606,7 +1629,7 @@ def raspi_startup():
     Path("./audio_config/").mkdir(parents=True, exist_ok=True)
     ## create music dir
     Path("./MUSIC/").mkdir(parents=True, exist_ok=True)
-
+    
     ## check autoplays
     check_autoplays()
 
