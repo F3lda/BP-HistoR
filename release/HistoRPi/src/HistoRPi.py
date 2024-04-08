@@ -1,10 +1,10 @@
 """
- * @file app.py
+ * @file HistoRPi.py
  *
  * @brief HistoRPi - Audio streaming device for historic radio receivers
  * @date 2024-01-28
  * @author F3lda (Karel Jirgl)
- * @update 2024-04-07 (v1.0)
+ * @update 2024-04-08 (v1.1)
 """
 from flask import Flask,request,redirect,url_for
 import subprocess
@@ -80,7 +80,7 @@ def index():
         os.chdir("audio_config")
 
         sink_config = {"AU_sink": sink["uuid"], "AU_volume": sink["volume"], "AU_source": 'SD', "AU_playing": '0', "AU_autoplay": '0', "AU_controls-SD-track": 'No track', "AU_controls-SD-repeat": '1', "AU_controls-SD-shuffle": '1', "AU_controls-URL-url": '', "AU_controls-FM-freq": '', "AU_controls-BT-name": '', "AU_controls-DAB-channel": '', "AU_controls-DAB-station": ''}
-        
+
         with open(sink["uuid"]+'.conf', "a+") as file:
             pass
         with open(sink["uuid"]+'.conf', "r+") as file:
@@ -466,7 +466,7 @@ def index():
             setFormsElementsDisabled(false);
             document.body.style.cursor = 'auto';
         }
-        
+
         disabledElements = [];
         function setFormsElementsDisabled(disabled) {
             if (disabled) {disabledElements = [];}
@@ -1410,10 +1410,10 @@ def raspi_playDAB(sink, channel, station=''):
 
             # spawn control pipe
             subprocess.Popen("echo 'DAB-pipe' ; echo 'ctlpipe' ; cat > dabin.pipe",  shell = True, cwd=os.path.dirname(os.path.realpath(__file__)), stdin=subprocess.PIPE)
-            
+
             play_command = "echo 'DAB' ; echo '"+sink+"' ; export TERM=linux ; sudo -u '#1000' XDG_RUNTIME_DIR=/run/user/1000 terminal-DAB-rtlsdr -C "+channel+" -Q 0<dabin.pipe"
             proc = subprocess.Popen(play_command, shell = True, cwd=os.path.dirname(os.path.realpath(__file__)), stdout=subprocess.PIPE) # change working directory to this script path
-            
+
 
             ensemble = ""
             data = ""
@@ -1557,7 +1557,7 @@ def raspi_savewifi():
         os.chdir(os.path.dirname(os.path.realpath(__file__))) # change working directory
 
         new_content = ""
-        
+
         with open(conf_file, "a+") as file:
             pass
         with open(conf_file, "r+") as file:
@@ -1629,7 +1629,7 @@ def raspi_startup():
     Path("./audio_config/").mkdir(parents=True, exist_ok=True)
     ## create music dir
     Path("./MUSIC/").mkdir(parents=True, exist_ok=True)
-    
+
     ## check autoplays
     check_autoplays()
 
