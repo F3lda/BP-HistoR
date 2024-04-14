@@ -6,7 +6,7 @@
  * @author F3lda (Karel Jirgl)
  * @update 2024-03-28 (v1.0)
  */
-// PINS: 32 and 33 -> capacitor meter; 25 and 26 (+ GND) -> audio output
+// PINS: 32 and 33 -> capacitor meter; 25 [right] and 26 [left] (+ GND) -> audio output
 #include <WiFi.h> // https://espressif-docs.readthedocs-hosted.com/projects/arduino-esp32/en/latest/api/wifi.html
 #include <DNSServer.h>
 #include <WebServer.h>
