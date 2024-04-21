@@ -4,7 +4,7 @@
 # * @brief HistoRPi - Audio streaming device for historic radio receivers - installation file
 # * @date 2024-01-23
 # * @author F3lda (Karel Jirgl)
-# * @update 2024-04-07 (v1.0)
+# * @update 2024-04-21 (v1.2)
 
 # !!! if your RaspberryPi's username is not 'histor' -> replace all 'histor' in this file for your username
 
@@ -554,15 +554,15 @@ while true; do
 			attempts=8
         fi
     else
-        echo "I have network: $(date)"
+        echo "I have network: \$(date)"
 
         # IP to Speech
-        . $FILE || true
-        if [ "$IPtoSPEECH" = true ] ; then
-            echo  "My IP address is $(hostname -I)" | festival --tts
+        . \$FILE || true
+        if [ "\$IPtoSPEECH" = true ] ; then
+            echo  "My IP address is \$(hostname -I)" | festival --tts
         fi
 
-        if [ $attempts -ne 0 ]; then
+        if [ \$attempts -ne 0 ]; then
             attempts=0
         fi
     fi

@@ -4,7 +4,7 @@
  * @brief HistoRPi - Audio streaming device for historic radio receivers
  * @date 2024-01-28
  * @author F3lda (Karel Jirgl)
- * @update 2024-04-08 (v1.1)
+ * @update 2024-04-08 (v1.2)
 """
 from flask import Flask,request,redirect,url_for
 import subprocess
