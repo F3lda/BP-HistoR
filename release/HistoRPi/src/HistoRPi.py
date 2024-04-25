@@ -4,7 +4,7 @@
  * @brief HistoRPi - Audio streaming device for historic radio receivers
  * @date 2024-01-28
  * @author F3lda (Karel Jirgl)
- * @update 2024-04-08 (v1.2)
+ * @update 2024-04-25 (v1.3)
 """
 from flask import Flask,request,redirect,url_for
 import subprocess
@@ -92,7 +92,7 @@ def index():
 
 
         webpageui += f"""
-  		<tr><input type="hidden" name="AU_sink[{sink["id"]}]" value="{sink["uuid"]}">
+        <tr><input type="hidden" name="AU_sink[{sink["id"]}]" value="{sink["uuid"]}">
             <td><input type="radio" name="AU_default" value="{sink["uuid"]}" {sink["default"]}></td>
             <td>{sink["id"]}</td>
             <td>{sink["name"]}</td>

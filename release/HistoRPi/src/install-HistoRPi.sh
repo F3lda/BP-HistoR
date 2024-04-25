@@ -4,7 +4,7 @@
 # * @brief HistoRPi - Audio streaming device for historic radio receivers - installation file
 # * @date 2024-01-23
 # * @author F3lda (Karel Jirgl)
-# * @update 2024-04-21 (v1.2)
+# * @update 2024-04-25 (v1.3)
 
 # !!! if your RaspberryPi's username is not 'histor' -> replace all 'histor' in this file for your username
 
@@ -512,6 +512,8 @@ AP_SSID="\${AP_SSID}"
 AP_PASSWORD="\${AP_PASSWORD}"
 
 DEVICE_NAME="\${DEVICE_NAME}"
+
+IPtoSPEECH=true
 ENDOFFILE
 
 
@@ -539,7 +541,7 @@ while true; do
         if [ \$attempts -lt 7 ]; then # 60 seconds
             attempts=\$((attempts+1))
         elif [ \$attempts -eq 7 ]; then
-			## Set-up Hotspot
+            ## Set-up Hotspot
             sudo nmcli connection down Hotspot
             #set up dnsmasq
             sudo \cp -f /etc/dnsmasq.conf_ap /etc/dnsmasq.conf # AP config
@@ -551,7 +553,7 @@ while true; do
             ## Set-up ethernet connection
             sudo nmcli connection modify Wired\ connection\ 1 ipv4.method manual ipv4.addresses 192.168.11.1/24 ipv4.gateway 192.168.11.1
 
-			attempts=8
+            attempts=8
         fi
     else
         echo "I have network: \$(date)"
