@@ -4,7 +4,7 @@
  * @brief HistoR - Embedded system for receiving audio streams on a historic radio receiver
  * @date 2024-03-18
  * @author F3lda (Karel Jirgl)
- * @update 2024-03-28 (v1.0)
+ * @update 2024-05-01 (v1.2)
  */
 // PINS: 32 and 33 -> capacitor meter; 25 [right] and 26 [left] (+ GND) -> audio output
 #include <WiFi.h> // https://espressif-docs.readthedocs-hosted.com/projects/arduino-esp32/en/latest/api/wifi.html
@@ -12,6 +12,8 @@
 #include <WebServer.h>
 #include <Preferences.h> // https://randomnerdtutorials.com/esp32-save-data-permanently-preferences/
 #include <nvs_flash.h>
+#include <SPIFFS.h>
+#define FORMAT_SPIFFS_IF_FAILED true 
 
 #include "HistoRWebPages.h"
 #include "AudioTask.h"
@@ -22,6 +24,7 @@
 /* PREFERENCES */
 const char AppName[] = "HistoRinvaz";
 Preferences preferences;
+char soundPath[] = "/963.wav";
 
 
 
@@ -50,8 +53,8 @@ char WIFIlastConnectedIP[64] = "(none)";
 /* AUDIO */
 char AudioLastInternetURL[256] = {0};
 char AudioCurrentlyPlayingDescription[256] = {0};
-char AudioFrequencySpan = 50;
-char AudioVolume = 10;
+char AudioFrequencySpan = 24;
+char AudioVolume = 20;
 
 
 
@@ -80,6 +83,8 @@ void audio_id3data(const char *info){  //id3 metadata
             }
         }
     }
+    //audio.unicode2utf8(AudioArtist, 128);
+    //audio.unicode2utf8(AudioTitle, 128);
 }
 void audio_showstation(const char *info){
     Serial.print("station     ");Serial.println(info);// radio station
@@ -88,6 +93,7 @@ void audio_showstation(const char *info){
     } else {
         strncpy(AudioArtist, info, 127);
     }
+    //audio.unicode2utf8(AudioArtist, 128);
 }
 void audio_showstreamtitle(const char *info){
     Serial.print("streamtitle ");Serial.println(info);// radio info
@@ -96,6 +102,7 @@ void audio_showstreamtitle(const char *info){
     } else {
         strncpy(AudioTitle, info, 127);
     }
+    //audio.unicode2utf8(AudioTitle, 128);
 }
 void audio_eof_mp3(const char *info){  //end of file
     Serial.print("eof_mp3     ");Serial.println(info);
@@ -127,7 +134,8 @@ const float IN_CAP_TO_GND = IN_STRAY_CAP_TO_GND;
 void capMeterInit();
 float capMeterGetValue();
 // value
-float CAPlastValue = 0.0;
+float CAPlastAvgValue = 0.0;
+float CAPlastDirectValue = 0.0;
 bool CAPinSpan = false;
 
 
@@ -162,6 +170,35 @@ void setup() {
 
 
 
+    /* SPIFFS */
+    Serial.println("SPIFFS mounting...");
+    if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
+        Serial.println("SPIFFS Mount Failed");
+    } else {
+        Serial.println("OK!");
+        // write sound file to SPIFFS only once
+        if (!SPIFFS.exists(soundPath)) {
+            Serial.println("Sound file writting...");
+            File file = SPIFFS.open(soundPath, "wb");
+            if (!file) {
+                Serial.println("– failed to open file for writing");
+            } else {
+                if(file.write(file_963_wav, file_963_wav_len)) {
+                    Serial.println("– file written");
+                } else {
+                    Serial.println("– write failed");
+                }
+                file.close();
+            }
+        } else {
+            Serial.println("Sound file already saved!");
+        }
+    }
+
+
+
+
+
     /* CAPACITY METER */
     capMeterInit();
 
@@ -175,6 +212,9 @@ void setup() {
     audioSetVolume(AudioVolume); // 0...21
     Serial.print("Current volume is: ");
     Serial.println(audioGetVolume());
+    Serial.println("BEEP PREPARE start!");
+    audioConnecttoSPIFFSprepare(soundPath);
+    Serial.println("BEEP PREPARED!");
     Serial.println("--------------------");
 
 
@@ -422,7 +462,7 @@ void setup() {
                     webServer.webServer_bufferContentAddChar(AudioLastInternetURL);
                 }
                 webServer.webServer_bufferContentAddChar("\", \"freq\":\"");
-                webServer.webServer_bufferContentAddFloat(CAPlastValue);
+                webServer.webServer_bufferContentAddFloat(CAPlastAvgValue);
                 webServer.webServer_bufferContentAddChar("\", \"inSpan\":\"");
                 if (CAPinSpan) {
                     webServer.webServer_bufferContentAddChar("IN SPAN");
@@ -629,8 +669,8 @@ void loop() {
 
     // get radio capacitor value (get current frequency)
     static unsigned long CAPlastTimestamp = 0.0;
-    if (millis()-CAPlastTimestamp >= 500) {
-        CAPlastValue = capMeterGetValue();
+    if (millis()-CAPlastTimestamp >= 200) {
+        CAPlastAvgValue = capMeterGetValue();
         CAPlastTimestamp = millis();
 
         
@@ -653,18 +693,25 @@ void loop() {
         static int notInSpanCount = 0;
         for(int i = streamsCount-1; i >= 0; i--) {
             // check if frequency is in span
-            if ((streamsFreq[i]-(int)((int)AudioFrequencySpan/2)) < CAPlastValue && CAPlastValue < (streamsFreq[i]+(int)((int)AudioFrequencySpan/2))) {
+            if (((streamsFreq[i]-(int)((int)AudioFrequencySpan/2)) < CAPlastAvgValue && CAPlastAvgValue < (streamsFreq[i]+(int)((int)AudioFrequencySpan/2))) && ((streamsFreq[i]-(int)((int)AudioFrequencySpan/2)) < CAPlastDirectValue && CAPlastDirectValue < (streamsFreq[i]+(int)((int)AudioFrequencySpan/2))) && (abs(CAPlastAvgValue-CAPlastDirectValue) < ((int)AudioFrequencySpan/2))) {
                 Serial.print("IN SPAN: ");
                 Serial.println(streamsFreq[i]);
 
                 CAPinSpan = true;
 
-                if (strcmp(AudioLastInternetURL, streamsUrl[i]) != 0) {
+                if (strcmp(AudioLastInternetURL, streamsUrl[i]) != 0 && ((streamsFreq[i]-(int)((int)AudioFrequencySpan/4)) < CAPlastAvgValue && CAPlastAvgValue < (streamsFreq[i]+(int)((int)AudioFrequencySpan/4))) && ((streamsFreq[i]-(int)((int)AudioFrequencySpan/4)) < CAPlastDirectValue && CAPlastDirectValue < (streamsFreq[i]+(int)((int)AudioFrequencySpan/4)))) {
                     Serial.print("STATION CHANGED: ");
                     Serial.println(streamsUrl[i]);
                     
                     strcpy(AudioLastInternetURL, streamsUrl[i]);
                     AudioCurrentlyPlayingDescription[0] = '\0';
+
+                    // play beep sound
+                    audioPauseResumeVolume(21);
+                    Serial.println("BEEP START!");
+                    while(audioRunning()){sleep(1);}
+                    Serial.println("BEEP END!");
+                    audioSetVolume(AudioVolume);
                     
                     // START URL RADIO on current frequency
                     audioStopSong();
@@ -677,13 +724,18 @@ void loop() {
         } else {
             notInSpanCount++;
         }
-        if (notInSpanCount == 10) {
+        if (notInSpanCount == 3) {
             Serial.println("LONG TIME NOT IN SPAN: stopAudio");
             
             // STOP RADIO
             audioStopSong();
             AudioLastInternetURL[0] = '\0';
             AudioCurrentlyPlayingDescription[0] = '\0';
+
+            // prepare beep sound
+            Serial.println("BEEP PREPARE start!");
+            audioConnecttoSPIFFSprepare(soundPath);
+            Serial.println("BEEP PREPARED!");
         }
     }
 
@@ -711,7 +763,8 @@ float capMeterGetValue()
     int val = analogRead(IN_PIN);
     digitalWrite(OUT_PIN, LOW);
 
-    if (val < (int)(MAX_ADC_VALUE*0.976)) // 97,6 % = 0.976
+    float capacitance = 0.0;
+    if (val < (int)(MAX_ADC_VALUE*1)) // 97,6 % = 0.976
     {
         //Low value capacitor
         //Clear everything for next measurement
@@ -719,32 +772,54 @@ float capMeterGetValue()
   
         //Calculate and print result
   
-        float capacitance = (float)val * IN_CAP_TO_GND / (float)(MAX_ADC_VALUE - val);
+        capacitance = (float)val * IN_CAP_TO_GND / (float)(MAX_ADC_VALUE - val);
   
-  
-  
-        #define CapMemSize 10
-        static float capMem[CapMemSize] = {0.0};
-        
-        float capAvg = capacitance;
-        for(int i = 0; i < CapMemSize-1; i++){
-            capAvg += capMem[i];
-            capMem[i] = capMem[i+1];
-        }
-        capMem[CapMemSize-1] = capacitance;
-        capAvg /= CapMemSize;
-        
-  
-  
-        Serial.print(F("Capacitance Value = "));
+        /*Serial.print(F("Capacitance Value = "));
         Serial.print(capacitance, 3);
         Serial.print(F(" pF ("));
         Serial.print(val);
-        Serial.print(F(") ["));
-        Serial.print(capAvg);
-        Serial.println(F("] "));
-
-        return capAvg;
+        Serial.println(F(") "));*/
+    } else {
+        return -1.0;
     }
-    return -1.0;
+
+
+
+    #define CapMemSize 10
+    static float capMem[CapMemSize] = {0.0};
+    static float capAvgMem[CapMemSize] = {0.0};
+    
+    float capAvg = 0.0;
+    //float capAvgAvg = 0.0;
+    for(int i = 0; i < CapMemSize-1; i++){
+        capAvg += capMem[i];
+        capMem[i] = capMem[i+1];
+        
+        //capAvgAvg += capAvgMem[i];
+        capAvgMem[i] = capAvgMem[i+1];
+    }
+    capMem[CapMemSize-1] = capacitance;
+    capAvg += capacitance;
+    capAvg /= CapMemSize;
+
+    capAvgMem[CapMemSize-1] = capAvg;
+    /*capAvgAvg += capAvg;
+    capAvgAvg /= CapMemSize;*/
+
+    CAPlastDirectValue = capacitance;//capAvgMem[2];
+
+
+
+    Serial.print(F("Capacitance Value = "));
+    Serial.print(capacitance, 3);
+    Serial.print(F(" pF ("));
+    Serial.print(val);
+    Serial.print(F(") ["));
+    Serial.print(capAvg);
+    Serial.print(F("] "));
+    Serial.print(F("{"));
+    Serial.print(CAPlastDirectValue);
+    Serial.println(F("} "));
+    
+    return capAvg;
 }

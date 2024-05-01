@@ -16,7 +16,7 @@ struct audioMessage{
     uint32_t    ret;
 } audioTxMessage, audioRxMessage;
 
-enum : uint8_t { SET_VOLUME, GET_VOLUME, CONNECTTOHOST, CONNECTTOSD, GET_AUDIOTIME, STOPSONG };
+enum : uint8_t { ISRUNNING, PAUSERESUME, PAUSERESUMEVOLUME, SET_POS, SET_VOLUME, GET_VOLUME, CONNECTTOHOST, CONNECTTOSD, CONNECTTOSPIFFS, CONNECTTOSPIFFSPREPARE, GET_AUDIOTIME, STOPSONG };
 
 QueueHandle_t audioSetQueue = NULL;
 QueueHandle_t audioGetQueue = NULL;
@@ -45,7 +45,28 @@ void audioTask(void *parameter) {
 
     while(true){
         if(xQueueReceive(audioSetQueue, &audioRxTaskMessage, 1) == pdPASS) {
-            if(audioRxTaskMessage.cmd == SET_VOLUME){
+            if(audioRxTaskMessage.cmd == ISRUNNING){
+                audioTxTaskMessage.cmd = ISRUNNING;
+                audioTxTaskMessage.ret = audio.isRunning();
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == PAUSERESUME){
+                audioTxTaskMessage.cmd = PAUSERESUME;
+                audioTxTaskMessage.ret = audio.pauseResume();
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == PAUSERESUMEVOLUME){
+                audioTxTaskMessage.cmd = PAUSERESUMEVOLUME;
+                audio.setVolume(audioRxTaskMessage.value);
+                audioTxTaskMessage.ret = audio.pauseResume();
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == SET_POS){
+                audioTxTaskMessage.cmd = SET_POS;
+                audioTxTaskMessage.ret = audio.setFilePos(audioRxTaskMessage.value);
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == SET_VOLUME){
                 audioTxTaskMessage.cmd = SET_VOLUME;
                 audio.setVolume(audioRxTaskMessage.value);
                 audioTxTaskMessage.ret = 1;
@@ -59,6 +80,18 @@ void audioTask(void *parameter) {
             else if(audioRxTaskMessage.cmd == CONNECTTOSD){
                 audioTxTaskMessage.cmd = CONNECTTOSD;
                 audioTxTaskMessage.ret = audio.connecttoSD(audioRxTaskMessage.txt);
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == CONNECTTOSPIFFS){
+                audioTxTaskMessage.cmd = CONNECTTOSPIFFS;
+                audioTxTaskMessage.ret = audio.connecttoFS(SPIFFS, audioRxTaskMessage.txt);
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == CONNECTTOSPIFFSPREPARE){
+                audioTxTaskMessage.cmd = CONNECTTOSPIFFSPREPARE;
+                audioTxTaskMessage.ret = audio.connecttoFS(SPIFFS, audioRxTaskMessage.txt);
+                audio.pauseResume();
+                audio.setFilePos(0);
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
             else if(audioRxTaskMessage.cmd == GET_VOLUME){
@@ -120,6 +153,32 @@ audioMessage transmitReceive(audioMessage msg){
     return audioRxMessage;
 }
 
+int audioRunning(){
+    audioTxMessage.cmd = ISRUNNING;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
+int audioPauseResume(){
+    audioTxMessage.cmd = PAUSERESUME;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
+int audioPauseResumeVolume(uint8_t vol){  // 0...21
+    audioTxMessage.cmd = PAUSERESUMEVOLUME;
+    audioTxMessage.value = vol;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
+int audioSetFilePos(uint32_t pos){
+    audioTxMessage.cmd = SET_POS;
+    audioTxMessage.value = pos;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
 int audioSetVolume(uint8_t vol){  // 0...21
     audioTxMessage.cmd = SET_VOLUME;
     audioTxMessage.value = vol;
@@ -154,6 +213,20 @@ bool audioConnecttohost(const char* host){
 
 bool audioConnecttoSD(const char* filename){
     audioTxMessage.cmd = CONNECTTOSD;
+    audioTxMessage.txt = filename;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
+bool audioConnecttoSPIFFS(const char* filename){
+    audioTxMessage.cmd = CONNECTTOSPIFFS;
+    audioTxMessage.txt = filename;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
+bool audioConnecttoSPIFFSprepare(const char* filename){
+    audioTxMessage.cmd = CONNECTTOSPIFFSPREPARE;
     audioTxMessage.txt = filename;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;

@@ -14,12 +14,18 @@
 
 void audioInit();
 
+int audioRunning();
+int audioPauseResume();
+int audioPauseResumeVolume(uint8_t vol);
+int audioSetFilePos(uint32_t pos);
 int audioSetVolume(uint8_t vol);
 uint8_t audioGetVolume();
 uint32_t audioGetCurrentTime();
 uint32_t audioStopSong();
 bool audioConnecttohost(const char* host);
 bool audioConnecttoSD(const char* filename);
+bool audioConnecttoSPIFFS(const char* filename);
+bool audioConnecttoSPIFFSprepare(const char* filename);
 
 
 #endif
