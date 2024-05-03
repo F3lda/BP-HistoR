@@ -716,6 +716,7 @@ void loop() {
 
             // STOP RADIO and prepare beep sound
             audioHistorStopStationPrepareBeep(soundPath);
+
             AudioLastInternetURL[0] = '\0';
             AudioCurrentlyPlayingDescription[0] = '\0';
         }
