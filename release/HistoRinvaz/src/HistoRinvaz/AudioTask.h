@@ -3,7 +3,7 @@
 
 
 #include <Arduino.h>
-#include <Audio.h>
+#include <Audio.h> // Source: https://github.com/schreibfaul1/ESP32-audioI2S
 
 
 // Digital I/O used for Audio output

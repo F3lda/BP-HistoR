@@ -10,7 +10,7 @@
 #include <WiFi.h> // https://espressif-docs.readthedocs-hosted.com/projects/arduino-esp32/en/latest/api/wifi.html
 #include <DNSServer.h>
 #include <WebServer.h>
-#include <Preferences.h> // https://randomnerdtutorials.com/esp32-save-data-permanently-preferences/
+#include <Preferences.h>
 #include <nvs_flash.h>
 #include <SPIFFS.h>
 #define FORMAT_SPIFFS_IF_FAILED true
@@ -168,20 +168,20 @@ void setup() {
     /* SPIFFS */
     Serial.println("SPIFFS mounting...");
     if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
-        Serial.println("SPIFFS Mount Failed");
+        Serial.println("ERROR: SPIFFS Mount Failed!");
     } else {
         Serial.println("OK!");
         // write sound file to SPIFFS only once
         if (!SPIFFS.exists(soundPath)) {
-            Serial.println("Sound file writting...");
+            Serial.println("Sound file writing...");
             File file = SPIFFS.open(soundPath, "wb");
             if (!file) {
-                Serial.println("– failed to open file for writing");
+                Serial.println("ERROR: Failed to open file for writing!");
             } else {
                 if(file.write(file_963_wav, file_963_wav_len)) {
-                    Serial.println("– file written");
+                    Serial.println("OK: File written!");
                 } else {
-                    Serial.println("– write failed");
+                    Serial.println("ERROR: Write failed!");
                 }
                 file.close();
             }
@@ -663,7 +663,7 @@ void loop() {
 
 
     // get radio capacitor value (get current frequency)
-    static unsigned long CAPlastTimestamp = 0.0;
+    static unsigned long CAPlastTimestamp = 0;
     if (millis()-CAPlastTimestamp >= 200) {
         CAPlastAvgValue = capMeterGetValue();
         CAPlastTimestamp = millis();
