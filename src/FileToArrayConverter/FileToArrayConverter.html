@@ -2,9 +2,9 @@
 <html lang='en'>
 <head>
 	<meta charset='UTF-8'>
-	<title>FileArray converter</title>
+	<title>FileToArray converter</title>
 	<script>
-	// https://dilshankelsen.com/convert-file-to-byte-array/
+	// Source: https://dilshankelsen.com/convert-file-to-byte-array/
 	async function onImageChange(event) {
 		console.log(event);
 		const inputNode = event.target;
@@ -38,7 +38,7 @@
 	</script>
 </head>
 <body>
-	<h1>FileArray converter</h1>
+	<h1>FileToArray converter</h1>
 	<input type="file" onchange="onImageChange(event)"/>
 	<pre id="result"></pre>
 </body>
