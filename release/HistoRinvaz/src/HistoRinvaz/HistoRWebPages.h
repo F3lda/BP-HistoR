@@ -16,7 +16,7 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
 <body>
 <h1>HistoRinvaz - Embedded system for receiving audio streams on a historic radio receiver</h1>
 <hr>
-<div> 
+<div>
     <h2>Stream player</h2>
     <form action="./API" method="POST" name="StreamPlayer">
         <input type="hidden" name="CMD" value="PLAYER">
@@ -33,7 +33,7 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
 </div>
 <br>
 <hr>
-<div> 
+<div>
     <h3>WIFI settings</h3>
     <form action="./API" method="POST" name="WifiSettings">
     <a href="./WIFISCAN" target="_blank">wifi scan</a><br><br>
@@ -47,7 +47,7 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
         <input type="submit" name="submit" value="Save">
     </form>
 </div>
-<div> 
+<div>
     <h3>AP settings</h3>
     <form action="./API" method="POST" name="APSettings">
         <input type="hidden" name="CMD" value="AP">
@@ -60,19 +60,19 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
         <input type="submit" name="submit" value="Save">
     </form>
 </div>
-<div> 
+<div>
     <h3>Erase HistoR</h3>
     <form action="./API" method="POST" name="EraseESP">
         <input type="hidden" name="CMD" value="ERASE">
-    Restore default settings and restart ESP: 
+    Restore default settings and restart ESP:
         <input type="submit" name="submit" value="Erase">
     </form>
 </div>
-<div> 
+<div>
     <h3>Restart HistoR</h3>
     <form action="./API" method="POST" name="RestartESP">
         <input type="hidden" name="CMD" value="RESTART">
-    Restart ESP to apply changes: 
+    Restart ESP to apply changes:
         <input type="submit" name="submit" value="Restart">
     </form>
 </div>
@@ -83,7 +83,7 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
         console.log(document.characterSet);
         (function loop() {
             setTimeout( async () => {
-              
+
                 try {
                     const formData = new FormData();
                     formData.append('CMD', 'DESC');
@@ -91,12 +91,12 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
                         method: "POST",
                         body: formData
                     });
-                    
+
                     const response2 = response.clone();
                     const text = (new TextDecoder('windows-1250')).decode(await response2.arrayBuffer()); // https://github.com/schreibfaul1/ESP32-audioI2S/issues/606
 
                     const result = await response.json(); // https://stackoverflow.com/questions/55282444/javascript-fetch-characters-with-encoding-issues
-                    
+
 
                     document.getElementById('Pdesc').innerHTML = JSON.parse(text).desc;
                     document.getElementById('Pfreq').value = result["freq"];
@@ -106,17 +106,17 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
                     console.log("DESC: " + text);
                     console.log("FREQ: " + result["freq"]);
                     console.log("INSPAN: " + result["inSpan"]);
-                    
+
                     loop();
                 } catch (error) {
                     console.error("Error: " + error);
                     alert("Error: " + error);
                 }
-                
+
             }, 1500);
         })();
     });
-    
+
     function addStream(freq, url)
     {
         const newNode = document.createElement("div");
@@ -166,7 +166,7 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
         try {
             const response = await fetch(url);
             const result = await response.text();
-            
+
             console.log("Success: " + result);
             if (result != "") {
                 alert(result);
@@ -186,7 +186,7 @@ const char HistoRHomePage[] PROGMEM = MULTI_LINE_STRING(<!DOCTYPE html>
                 body: data
             });
             const result = await response.text();
-            
+
             console.log("Success: " + result);
             if (result != "") {
                 alert(result);

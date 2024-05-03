@@ -3,11 +3,13 @@
 
 Audio audio(true, I2S_DAC_CHANNEL_BOTH_EN); // at PINs 25 and 26
 
+
+
 //****************************************************************************************
 //                                   A U D I O _ T A S K                                 *
 //****************************************************************************************
 void audioStartStop(bool audioisrunning) __attribute__((weak));
-bool audioIsRunning = false;
+bool audioRunning = false;
 
 struct audioMessage{
     uint8_t     cmd;
@@ -16,7 +18,7 @@ struct audioMessage{
     uint32_t    ret;
 } audioTxMessage, audioRxMessage;
 
-enum : uint8_t { ISRUNNING, PAUSERESUME, PAUSERESUMEVOLUME, SET_POS, SET_VOLUME, GET_VOLUME, CONNECTTOHOST, CONNECTTOSD, CONNECTTOSPIFFS, CONNECTTOSPIFFSPREPARE, GET_AUDIOTIME, STOPSONG };
+enum : uint8_t { IS_RUNNING, PAUSE_RESUME, SET_FILE_POS, GET_CURRENT_TIME, SET_VOLUME, GET_VOLUME, CONNECT_TO_HOST, CONNECT_TO_SD, CONNECT_TO_SPIFFS, STOP_SONG, HISTOR_STOP_STATION_PREPARE_BEEP, HISTOR_CHANGE_STATION };
 
 QueueHandle_t audioSetQueue = NULL;
 QueueHandle_t audioGetQueue = NULL;
@@ -43,55 +45,34 @@ void audioTask(void *parameter) {
     Serial.print("setup() is running on core ");
     Serial.println(xPortGetCoreID());
 
+    bool beep_played = false;
+
     while(true){
         if(xQueueReceive(audioSetQueue, &audioRxTaskMessage, 1) == pdPASS) {
-            if(audioRxTaskMessage.cmd == ISRUNNING){
-                audioTxTaskMessage.cmd = ISRUNNING;
+            if(audioRxTaskMessage.cmd == IS_RUNNING){
+                audioTxTaskMessage.cmd = IS_RUNNING;
                 audioTxTaskMessage.ret = audio.isRunning();
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
-            else if(audioRxTaskMessage.cmd == PAUSERESUME){
-                audioTxTaskMessage.cmd = PAUSERESUME;
+            else if(audioRxTaskMessage.cmd == PAUSE_RESUME){
+                audioTxTaskMessage.cmd = PAUSE_RESUME;
                 audioTxTaskMessage.ret = audio.pauseResume();
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
-            else if(audioRxTaskMessage.cmd == PAUSERESUMEVOLUME){
-                audioTxTaskMessage.cmd = PAUSERESUMEVOLUME;
-                audio.setVolume(audioRxTaskMessage.value);
-                audioTxTaskMessage.ret = audio.pauseResume();
-                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
-            }
-            else if(audioRxTaskMessage.cmd == SET_POS){
-                audioTxTaskMessage.cmd = SET_POS;
+            else if(audioRxTaskMessage.cmd == SET_FILE_POS){
+                audioTxTaskMessage.cmd = SET_FILE_POS;
                 audioTxTaskMessage.ret = audio.setFilePos(audioRxTaskMessage.value);
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == GET_CURRENT_TIME){
+                audioTxTaskMessage.cmd = GET_CURRENT_TIME;
+                audioTxTaskMessage.ret = audio.getAudioCurrentTime();
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
             else if(audioRxTaskMessage.cmd == SET_VOLUME){
                 audioTxTaskMessage.cmd = SET_VOLUME;
                 audio.setVolume(audioRxTaskMessage.value);
-                audioTxTaskMessage.ret = 1;
-                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
-            }
-            else if(audioRxTaskMessage.cmd == CONNECTTOHOST){
-                audioTxTaskMessage.cmd = CONNECTTOHOST;
-                audioTxTaskMessage.ret = audio.connecttohost(audioRxTaskMessage.txt);
-                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
-            }
-            else if(audioRxTaskMessage.cmd == CONNECTTOSD){
-                audioTxTaskMessage.cmd = CONNECTTOSD;
-                audioTxTaskMessage.ret = audio.connecttoSD(audioRxTaskMessage.txt);
-                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
-            }
-            else if(audioRxTaskMessage.cmd == CONNECTTOSPIFFS){
-                audioTxTaskMessage.cmd = CONNECTTOSPIFFS;
-                audioTxTaskMessage.ret = audio.connecttoFS(SPIFFS, audioRxTaskMessage.txt);
-                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
-            }
-            else if(audioRxTaskMessage.cmd == CONNECTTOSPIFFSPREPARE){
-                audioTxTaskMessage.cmd = CONNECTTOSPIFFSPREPARE;
-                audioTxTaskMessage.ret = audio.connecttoFS(SPIFFS, audioRxTaskMessage.txt);
-                audio.pauseResume();
-                audio.setFilePos(0);
+                audioTxTaskMessage.ret = audioRxTaskMessage.value;
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
             else if(audioRxTaskMessage.cmd == GET_VOLUME){
@@ -99,15 +80,41 @@ void audioTask(void *parameter) {
                 audioTxTaskMessage.ret = audio.getVolume();
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
-            else if(audioRxTaskMessage.cmd == STOPSONG){
+            else if(audioRxTaskMessage.cmd == CONNECT_TO_HOST){
+                audioTxTaskMessage.cmd = CONNECT_TO_HOST;
+                audioTxTaskMessage.ret = audio.connecttohost(audioRxTaskMessage.txt);
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == CONNECT_TO_SD){
+                audioTxTaskMessage.cmd = CONNECT_TO_SD;
+                audioTxTaskMessage.ret = audio.connecttoSD(audioRxTaskMessage.txt);
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == CONNECT_TO_SPIFFS){
+                audioTxTaskMessage.cmd = CONNECT_TO_SPIFFS;
+                audioTxTaskMessage.ret = audio.connecttoFS(SPIFFS, audioRxTaskMessage.txt);
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == STOP_SONG){
                 audioTxTaskMessage.cmd = GET_VOLUME;
                 audioTxTaskMessage.ret = audio.stopSong();
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
-            else if(audioRxTaskMessage.cmd == GET_AUDIOTIME){
-                audioTxTaskMessage.cmd = GET_AUDIOTIME;
-                audioTxTaskMessage.ret = audio.getAudioCurrentTime();
+            else if(audioRxTaskMessage.cmd == HISTOR_STOP_STATION_PREPARE_BEEP){
+                audioTxTaskMessage.cmd = HISTOR_STOP_STATION_PREPARE_BEEP;
+                audio.stopSong();
+                audioTxTaskMessage.ret = audio.connecttoFS(SPIFFS, audioRxTaskMessage.txt);
+                audio.pauseResume();
+                audio.setFilePos(0);
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            }
+            else if(audioRxTaskMessage.cmd == HISTOR_CHANGE_STATION){
+                audioTxTaskMessage.cmd = HISTOR_CHANGE_STATION;
+                audio.setVolume(21);
+                beep_played = true;
+                audioTxTaskMessage.ret = audio.pauseResume();
+                Serial.print("IS RUNNING: ");
+                Serial.println(audio.isRunning());
             }
             else{
                 log_i("error");
@@ -116,14 +123,22 @@ void audioTask(void *parameter) {
         audio.loop();
         if (!audio.isRunning()) {
             sleep(1);
-            if (audioIsRunning == true) {
-                audioIsRunning = false;
-                if(audioStartStop)audioStartStop(false);
+            if (audioRunning == true) {
+                audioRunning = false;
+                if(audioStartStop) {audioStartStop(false);}
+            }
+
+            if (beep_played) {
+                beep_played = false;
+
+                audio.setVolume(audioRxTaskMessage.value);
+                audio.connecttohost(audioRxTaskMessage.txt);
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
         } else {
-            if (audioIsRunning == false) {
-                audioIsRunning = true;
-                if(audioStartStop)audioStartStop(true);
+            if (audioRunning == false) {
+                audioRunning = true;
+                if(audioStartStop) {audioStartStop(true);}
             }
         }
             //Serial.println("Free Stack Space: ");
@@ -153,33 +168,34 @@ audioMessage transmitReceive(audioMessage msg){
     return audioRxMessage;
 }
 
-int audioRunning(){
-    audioTxMessage.cmd = ISRUNNING;
+
+
+bool audioIsRunning(){
+    audioTxMessage.cmd = IS_RUNNING;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;
 }
 
-int audioPauseResume(){
-    audioTxMessage.cmd = PAUSERESUME;
+bool audioPauseResume(){
+    audioTxMessage.cmd = PAUSE_RESUME;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;
 }
 
-int audioPauseResumeVolume(uint8_t vol){  // 0...21
-    audioTxMessage.cmd = PAUSERESUMEVOLUME;
-    audioTxMessage.value = vol;
-    audioMessage RX = transmitReceive(audioTxMessage);
-    return RX.ret;
-}
-
-int audioSetFilePos(uint32_t pos){
-    audioTxMessage.cmd = SET_POS;
+bool audioSetFilePos(uint32_t pos){
+    audioTxMessage.cmd = SET_FILE_POS;
     audioTxMessage.value = pos;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;
 }
 
-int audioSetVolume(uint8_t vol){  // 0...21
+uint32_t audioGetCurrentTime(){
+    audioTxMessage.cmd = GET_CURRENT_TIME;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
+uint8_t audioSetVolume(uint8_t vol){  // 0...21
     audioTxMessage.cmd = SET_VOLUME;
     audioTxMessage.value = vol;
     audioMessage RX = transmitReceive(audioTxMessage);
@@ -192,45 +208,52 @@ uint8_t audioGetVolume(){
     return RX.ret;
 }
 
-uint32_t audioGetCurrentTime(){
-    audioTxMessage.cmd = GET_AUDIOTIME;
-    audioMessage RX = transmitReceive(audioTxMessage);
-    return RX.ret;
-}
-
-uint32_t audioStopSong(){
-    audioTxMessage.cmd = STOPSONG;
-    audioMessage RX = transmitReceive(audioTxMessage);
-    return RX.ret;
-}
-
 bool audioConnecttohost(const char* host){
-    audioTxMessage.cmd = CONNECTTOHOST;
+    audioTxMessage.cmd = CONNECT_TO_HOST;
     audioTxMessage.txt = host;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;
 }
 
 bool audioConnecttoSD(const char* filename){
-    audioTxMessage.cmd = CONNECTTOSD;
+    audioTxMessage.cmd = CONNECT_TO_SD;
     audioTxMessage.txt = filename;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;
 }
 
 bool audioConnecttoSPIFFS(const char* filename){
-    audioTxMessage.cmd = CONNECTTOSPIFFS;
+    audioTxMessage.cmd = CONNECT_TO_SPIFFS;
     audioTxMessage.txt = filename;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;
 }
 
-bool audioConnecttoSPIFFSprepare(const char* filename){
-    audioTxMessage.cmd = CONNECTTOSPIFFSPREPARE;
+uint32_t audioStopSong(){
+    audioTxMessage.cmd = STOP_SONG;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
+
+
+
+
+bool audioHistorStopStationPrepareBeep(const char* filename){
+    audioTxMessage.cmd = HISTOR_STOP_STATION_PREPARE_BEEP;
     audioTxMessage.txt = filename;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;
 }
+
+bool audioHistorChangeStation(const char* host, uint8_t vol){  // 0...21
+    audioTxMessage.cmd = HISTOR_CHANGE_STATION;
+    audioTxMessage.txt = host;
+    audioTxMessage.value = vol;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
 
 
 //*****************************************************************************************
@@ -253,10 +276,12 @@ void audio_showstation(const char *info){
 }
 void audio_showstreamtitle(const char *info){
     Serial.print("streamtitle ");Serial.println(info);// radio info
-}
+}*/
 void audio_eof_mp3(const char *info){  //end of file
     Serial.print("eof_mp3     ");Serial.println(info);
-}*/
+    Serial.print("eof_mp3() is running on core ");
+    Serial.println(xPortGetCoreID());
+}
 void audio_bitrate(const char *info){
     Serial.print("bitrate     ");Serial.println(info);
 }

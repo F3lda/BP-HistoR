@@ -80,11 +80,11 @@ String WebServerCommon::webServer_argsToStr()
     message += "\nArguments: ";
     message += this->args();
     message += "\n";
-    
+
     for (uint8_t i = 0; i < this->args(); i++) {
         message += "- " + this->argName(i) + ": " + this->arg(i) + "\n";
     }
-    
+
     return message;
 }
 
@@ -110,7 +110,7 @@ void WebServerCommon::webServer_handleFileUpload()
         Serial.println(upload.currentSize);
         upload.buf[upload.totalSize]=0;
         Serial.println((char*)upload.buf);
-        
+
         this->send(200, "text/plain", (char*)upload.buf);
         this->client().stop();
     }

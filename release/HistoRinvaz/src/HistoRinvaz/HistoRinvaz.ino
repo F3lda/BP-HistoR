@@ -1,10 +1,10 @@
 /**
  * @file HistoRinvaz.ino
- * 
+ *
  * @brief HistoR - Embedded system for receiving audio streams on a historic radio receiver
  * @date 2024-03-18
  * @author F3lda (Karel Jirgl)
- * @update 2024-05-01 (v1.2)
+ * @update 2024-05-03 (v1.3)
  */
 // PINS: 32 and 33 -> capacitor meter; 25 [right] and 26 [left] (+ GND) -> audio output
 #include <WiFi.h> // https://espressif-docs.readthedocs-hosted.com/projects/arduino-esp32/en/latest/api/wifi.html
@@ -13,7 +13,7 @@
 #include <Preferences.h> // https://randomnerdtutorials.com/esp32-save-data-permanently-preferences/
 #include <nvs_flash.h>
 #include <SPIFFS.h>
-#define FORMAT_SPIFFS_IF_FAILED true 
+#define FORMAT_SPIFFS_IF_FAILED true
 
 #include "HistoRWebPages.h"
 #include "AudioTask.h"
@@ -103,11 +103,6 @@ void audio_showstreamtitle(const char *info){
         strncpy(AudioTitle, info, 127);
     }
     //audio.unicode2utf8(AudioTitle, 128);
-}
-void audio_eof_mp3(const char *info){  //end of file
-    Serial.print("eof_mp3     ");Serial.println(info);
-    Serial.print("eof_mp3() is running on core ");
-    Serial.println(xPortGetCoreID());
 }
 void audioStartStop(bool audioisrunning){
     Serial.print("audioisrunning    ");Serial.println(audioisrunning);
@@ -213,7 +208,7 @@ void setup() {
     Serial.print("Current volume is: ");
     Serial.println(audioGetVolume());
     Serial.println("BEEP PREPARE start!");
-    audioConnecttoSPIFFSprepare(soundPath);
+    audioHistorStopStationPrepareBeep(soundPath);
     Serial.println("BEEP PREPARED!");
     Serial.println("--------------------");
 
@@ -277,7 +272,7 @@ void setup() {
         webServer.setContentLength(CONTENT_LENGTH_UNKNOWN); // https://www.esp8266.com/viewtopic.php?p=73204
         // here begin chunked transfer
         webServer.send(200, "text/html", "<!--- DOCUMENT START --->");
-        
+
         webServer.sendContent(FSH(HistoRHomePage));
         webServer.webServer_bufferContentAddChar("<script>\n");
 
@@ -301,7 +296,7 @@ void setup() {
             preferences.getBytes("streamsUrl", streamsUrl, sizeof(streamsUrl));
         }
         preferences.end();
-        
+
         for(int i = streamsCount-1; i >= 0; i--) {
             webServer.webServer_bufferContentAddChar("addStream(");
             webServer.webServer_bufferContentAddInt(streamsFreq[i]);
@@ -313,7 +308,7 @@ void setup() {
             webServer.webServer_bufferContentAddChar("addStream(150,'https://ice5.abradio.cz/hitvysocina128.mp3');\n");
         }
 
-        
+
         // WIFI
         webServer.webServer_bufferContentAddJavascriptSetElementInnerHTML("WIFI_IP", WIFIlastConnectedIP);
         webServer.webServer_bufferContentAddJavascriptSetElementValue("WIFI_SSID", WIFIssid);
@@ -415,7 +410,7 @@ void setup() {
                 return;
             } else if (cmd == "RESTART") {
                 Serial.println("RESTART!!!");
-                
+
                 preferences.end();
                 webServer.send(200, "text/plain", "RESTART OK!");
                 webServer.client().stop();
@@ -427,7 +422,7 @@ void setup() {
 
                 // Remove all preferences under the opened namespace
                 //preferences.clear();
-                
+
                 // completely remove non-volatile storage (nvs)
                 nvs_flash_erase(); // erase the NVS partition and...
                 nvs_flash_init(); // initialize the NVS partition.
@@ -438,7 +433,7 @@ void setup() {
                 delay(1500);
                 ESP.restart();
                 return;
-            } else if (cmd == "DESC") { 
+            } else if (cmd == "DESC") {
                 // currently playing description
                 if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
                     snprintf(AudioCurrentlyPlayingDescription, 256, "%s - %s", AudioArtist, AudioTitle) < 0 ? printf("%c", '\0') : 0; // ignore truncation warning
@@ -673,7 +668,7 @@ void loop() {
         CAPlastAvgValue = capMeterGetValue();
         CAPlastTimestamp = millis();
 
-        
+
         // start radio on current freq -> check frequency span with frequency from preferences and play new stream or stop old one
         // get frequencies
         preferences.begin(AppName, false);
@@ -702,20 +697,12 @@ void loop() {
                 if (strcmp(AudioLastInternetURL, streamsUrl[i]) != 0 && ((streamsFreq[i]-(int)((int)AudioFrequencySpan/4)) < CAPlastAvgValue && CAPlastAvgValue < (streamsFreq[i]+(int)((int)AudioFrequencySpan/4))) && ((streamsFreq[i]-(int)((int)AudioFrequencySpan/4)) < CAPlastDirectValue && CAPlastDirectValue < (streamsFreq[i]+(int)((int)AudioFrequencySpan/4)))) {
                     Serial.print("STATION CHANGED: ");
                     Serial.println(streamsUrl[i]);
-                    
+
                     strcpy(AudioLastInternetURL, streamsUrl[i]);
                     AudioCurrentlyPlayingDescription[0] = '\0';
 
-                    // play beep sound
-                    audioPauseResumeVolume(21);
-                    Serial.println("BEEP START!");
-                    while(audioRunning()){sleep(1);}
-                    Serial.println("BEEP END!");
-                    audioSetVolume(AudioVolume);
-                    
-                    // START URL RADIO on current frequency
-                    audioStopSong();
-                    audioConnecttohost(AudioLastInternetURL);
+                    // play beep sound and START URL RADIO on current frequency
+                    audioHistorChangeStation(AudioLastInternetURL, AudioVolume);
                 }
             }
         }
@@ -726,20 +713,15 @@ void loop() {
         }
         if (notInSpanCount == 3) {
             Serial.println("LONG TIME NOT IN SPAN: stopAudio");
-            
-            // STOP RADIO
-            audioStopSong();
+
+            // STOP RADIO and prepare beep sound
+            audioHistorStopStationPrepareBeep(soundPath);
             AudioLastInternetURL[0] = '\0';
             AudioCurrentlyPlayingDescription[0] = '\0';
-
-            // prepare beep sound
-            Serial.println("BEEP PREPARE start!");
-            audioConnecttoSPIFFSprepare(soundPath);
-            Serial.println("BEEP PREPARED!");
         }
     }
 
-    
+
 
     yield(); //https://github.com/espressif/arduino-esp32/issues/4348#issuecomment-1463206670
 }
@@ -769,11 +751,11 @@ float capMeterGetValue()
         //Low value capacitor
         //Clear everything for next measurement
         pinMode(IN_PIN, OUTPUT);
-  
+
         //Calculate and print result
-  
+
         capacitance = (float)val * IN_CAP_TO_GND / (float)(MAX_ADC_VALUE - val);
-  
+
         /*Serial.print(F("Capacitance Value = "));
         Serial.print(capacitance, 3);
         Serial.print(F(" pF ("));
@@ -788,13 +770,13 @@ float capMeterGetValue()
     #define CapMemSize 10
     static float capMem[CapMemSize] = {0.0};
     static float capAvgMem[CapMemSize] = {0.0};
-    
+
     float capAvg = 0.0;
     //float capAvgAvg = 0.0;
     for(int i = 0; i < CapMemSize-1; i++){
         capAvg += capMem[i];
         capMem[i] = capMem[i+1];
-        
+
         //capAvgAvg += capAvgMem[i];
         capAvgMem[i] = capAvgMem[i+1];
     }
@@ -820,6 +802,6 @@ float capMeterGetValue()
     Serial.print(F("{"));
     Serial.print(CAPlastDirectValue);
     Serial.println(F("} "));
-    
+
     return capAvg;
 }
