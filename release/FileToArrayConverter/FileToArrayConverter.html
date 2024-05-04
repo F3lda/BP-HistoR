@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+	<meta charset='UTF-8'>
+	<title>FileToArray converter</title>
+	<script>
+	// Source: https://dilshankelsen.com/convert-file-to-byte-array/
+	async function onImageChange(event) {
+		console.log(event);
+		const inputNode = event.target;
+		if (inputNode.files.length > 0) {
+			const selectedFile = inputNode.files[0];
+			const filename = inputNode.files[0].name.replaceAll('.', '_');
+			const byteFile = await getAsByteArray(selectedFile);
+			document.getElementById("result").innerHTML = "#define " + filename + "_len " + byteFile.length + "\nconst uint8_t " + filename + "[] PROGMEM = {" + byteFile + "};\n\n";
+			console.log(byteFile);
+			console.log(filename);
+		}
+	}
+
+	async function getAsByteArray(file) {
+		return new Uint8Array(await readFile(file));
+	}
+
+	function readFile(file) {
+		return new Promise((resolve, reject) => {
+			// Create file reader
+			let reader = new FileReader();
+
+			// Register event listeners
+			reader.addEventListener("loadend", e => resolve(e.target.result));
+			reader.addEventListener("error", reject);
+
+			// Read file
+			reader.readAsArrayBuffer(file);
+		});
+	}
+	</script>
+</head>
+<body>
+	<h1>FileToArray converter</h1>
+	<input type="file" onchange="onImageChange(event)"/>
+	<pre id="result"></pre>
+</body>
+</html>
