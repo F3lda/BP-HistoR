@@ -4,7 +4,7 @@
  * @brief HistoR - Embedded system for receiving audio streams on a historic radio receiver
  * @date 2024-03-18
  * @author F3lda (Karel Jirgl)
- * @update 2024-05-03 (v1.3)
+ * @update 2024-05-05 (v1.4)
  */
 // PINS: 32 and 33 -> capacitor meter; 25 [right] and 26 [left] (+ GND) -> audio output
 #include <WiFi.h> // https://espressif-docs.readthedocs-hosted.com/projects/arduino-esp32/en/latest/api/wifi.html
@@ -61,6 +61,7 @@ char AudioVolume = 20;
 
 
 /* AUDIO TASK - running on audio core */
+bool AudioDescChanged = false;
 char AudioArtist[128] = {0};
 char AudioTitle[128] = {0};
 void audio_id3data(const char *info){  //id3 metadata
@@ -73,6 +74,7 @@ void audio_id3data(const char *info){  //id3 metadata
                 strcpy(AudioArtist, " ");
             } else {
                 strncpy(AudioArtist, data, 127); Serial.print("Artist=");Serial.println(data);
+                AudioDescChanged = true;
             }
         }
         if (info[0] == 'T' && info[1] == 'i' && info[2] == 't' && data-info == 7) {
@@ -80,6 +82,7 @@ void audio_id3data(const char *info){  //id3 metadata
                 strcpy(AudioTitle, " ");
             } else {
                 strncpy(AudioTitle, data, 127); Serial.print("Title=");Serial.println(data);
+                AudioDescChanged = true;
             }
         }
     }
@@ -92,6 +95,7 @@ void audio_showstation(const char *info){
         strcpy(AudioArtist, " ");
     } else {
         strncpy(AudioArtist, info, 127);
+        AudioDescChanged = true;
     }
     //audio.unicode2utf8(AudioArtist, 128);
 }
@@ -101,6 +105,7 @@ void audio_showstreamtitle(const char *info){
         strcpy(AudioTitle, " ");
     } else {
         strncpy(AudioTitle, info, 127);
+        AudioDescChanged = true;
     }
     //audio.unicode2utf8(AudioTitle, 128);
 }
@@ -435,12 +440,19 @@ void setup() {
                 return;
             } else if (cmd == "DESC") {
                 // currently playing description
-                if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
-                    snprintf(AudioCurrentlyPlayingDescription, 256, "%s - %s", AudioArtist, AudioTitle) < 0 ? printf("%c", '\0') : 0; // ignore truncation warning
+                if (AudioDescChanged) {// 
+                    AudioDescChanged = false;
+                    if (AudioArtist[0] != '\0' && AudioTitle[0] != '\0') {
+                        snprintf(AudioCurrentlyPlayingDescription, 256, "%s - %s", AudioArtist, AudioTitle) < 0 ? printf("%c", '\0') : 0; // ignore truncation warning
+                    } else if(AudioArtist[0] == '\0' && AudioTitle[0] != '\0') {
+                        snprintf(AudioCurrentlyPlayingDescription, 256, "[unknown station] - %s", AudioTitle) < 0 ? printf("%c", '\0') : 0; // ignore truncation warning
+                    } else if(AudioArtist[0] != '\0' && AudioTitle[0] == '\0') {
+                        snprintf(AudioCurrentlyPlayingDescription, 256, "%s", AudioArtist) < 0 ? printf("%c", '\0') : 0; // ignore truncation warning
+                    } else {
+                        AudioCurrentlyPlayingDescription[0] = '\0';
+                    }
                     // save to preferences
                     preferences.putBytes("Pdesc", AudioCurrentlyPlayingDescription, 256);
-                    strcpy(AudioArtist, "");
-                    strcpy(AudioTitle, "");
                 }
 
 

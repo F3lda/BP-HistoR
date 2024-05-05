@@ -39,6 +39,7 @@ void audioTask(void *parameter) {
     struct audioMessage audioTxTaskMessage;
 
     //audio.setVolume(0); // 0...21
+    audio.setConnectionTimeout(1000, 5000);
 
     Serial.println("Free Stack Space: ");
     Serial.println(uxTaskGetStackHighWaterMark(NULL)); //This is, the minimum free stack space there has been in bytes since the task started.
@@ -87,7 +88,7 @@ void audioTask(void *parameter) {
             }
             else if(audioRxTaskMessage.cmd == CONNECT_TO_SD){
                 audioTxTaskMessage.cmd = CONNECT_TO_SD;
-                audioTxTaskMessage.ret = audio.connecttoSD(audioRxTaskMessage.txt);
+                audioTxTaskMessage.ret = audio.connecttoFS(SD, audioRxTaskMessage.txt);
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
             else if(audioRxTaskMessage.cmd == CONNECT_TO_SPIFFS){
@@ -122,18 +123,21 @@ void audioTask(void *parameter) {
         }
         audio.loop();
         if (!audio.isRunning()) {
-            sleep(1);
-            if (audioRunning == true) {
-                audioRunning = false;
-                if(audioStartStop) {audioStartStop(false);}
-            }
-
             if (beep_played) {
                 beep_played = false;
 
+                audio.stopSong();
                 audio.setVolume(audioRxTaskMessage.value);
                 audio.connecttohost(audioRxTaskMessage.txt);
+                audio.loop();
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            } else {
+                delay(1000/30);
+            }
+            
+            if (audioRunning == true) {
+                audioRunning = false;
+                if(audioStartStop) {audioStartStop(false);}
             }
         } else {
             if (audioRunning == false) {
@@ -150,7 +154,7 @@ void audioInit() {
     xTaskCreatePinnedToCore(
         audioTask,             /* Function to implement the task */
         "audioplay",           /* Name of the task */
-        20000,                 /* Stack size in bytes */
+        15000,                 /* Stack size in bytes */
         NULL,                  /* Task input parameter */
         2 | portPRIVILEGE_BIT, /* Priority of the task */
         NULL,                  /* Task handle. */
