@@ -39,7 +39,7 @@ void audioTask(void *parameter) {
     struct audioMessage audioTxTaskMessage;
 
     //audio.setVolume(0); // 0...21
-    audio.setConnectionTimeout(1000, 5000);
+    audio.setConnectionTimeout(3000, 10000);
 
     Serial.println("Free Stack Space: ");
     Serial.println(uxTaskGetStackHighWaterMark(NULL)); //This is, the minimum free stack space there has been in bytes since the task started.

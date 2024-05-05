@@ -70,20 +70,12 @@ void audio_id3data(const char *info){  //id3 metadata
     if (data != NULL) {
         data++;
         if (info[0] == 'A' && info[1] == 'r' && info[2] == 't' && data-info == 8) {
-            if (data[0] == '\0') {
-                strcpy(AudioArtist, " ");
-            } else {
-                strncpy(AudioArtist, data, 127); Serial.print("Artist=");Serial.println(data);
-                AudioDescChanged = true;
-            }
+            strncpy(AudioArtist, data, 127); Serial.print("Artist=");Serial.println(data);
+            AudioDescChanged = true;
         }
         if (info[0] == 'T' && info[1] == 'i' && info[2] == 't' && data-info == 7) {
-            if (data[0] == '\0') {
-                strcpy(AudioTitle, " ");
-            } else {
-                strncpy(AudioTitle, data, 127); Serial.print("Title=");Serial.println(data);
-                AudioDescChanged = true;
-            }
+            strncpy(AudioTitle, data, 127); Serial.print("Title=");Serial.println(data);
+            AudioDescChanged = true;
         }
     }
     //audio.unicode2utf8(AudioArtist, 128);
@@ -91,22 +83,14 @@ void audio_id3data(const char *info){  //id3 metadata
 }
 void audio_showstation(const char *info){
     Serial.print("station     ");Serial.println(info);// radio station
-    if (info[0] == '\0') {
-        strcpy(AudioArtist, " ");
-    } else {
-        strncpy(AudioArtist, info, 127);
-        AudioDescChanged = true;
-    }
+    strncpy(AudioArtist, info, 127);
+    AudioDescChanged = true;
     //audio.unicode2utf8(AudioArtist, 128);
 }
 void audio_showstreamtitle(const char *info){
     Serial.print("streamtitle ");Serial.println(info);// radio info
-    if (info[0] == '\0') {
-        strcpy(AudioTitle, " ");
-    } else {
-        strncpy(AudioTitle, info, 127);
-        AudioDescChanged = true;
-    }
+    strncpy(AudioTitle, info, 127);
+    AudioDescChanged = true;
     //audio.unicode2utf8(AudioTitle, 128);
 }
 void audioStartStop(bool audioisrunning){
