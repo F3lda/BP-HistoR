@@ -4,7 +4,7 @@
  * @brief HistoRPi - Audio streaming device for historic radio receivers
  * @date 2024-01-28
  * @author F3lda (Karel Jirgl)
- * @update 2024-04-25 (v1.3)
+ * @update 2024-05-09 (v1.4)
 """
 from flask import Flask,request,redirect,url_for
 import subprocess
@@ -1486,7 +1486,7 @@ def raspi_transFM(sink="TransmittersSink", freq="89.0", desc_short="HistoRPi", d
 
 def raspi_transAM(sink="TransmittersSink", freq="1.6"):
     freq = float(freq)
-    freq *= 1000
+    freq *= 1000000
     freq = '%.0f' % freq
 
     if os.system("ps cax | grep rpitx") != 0:
