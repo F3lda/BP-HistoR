@@ -14,3 +14,6 @@ available FM and DAB broadcasts to any audio output device connected to the Rasp
 - In the HistoRPi web app, you can play selected audio streams to individual Raspberry Pi audio output devices and broadcast the audio stream of the selected audio output device on AM or FM frequencies using a software-defined radio.
 - DAB and FM broadcasts can be received by connecting an RTL-SDR dongle.
 - Start playing and Listen!
+
+## Video
+[https://www.youtube.com/watch?v=wEk9IPGQwg4](https://www.youtube.com/watch?v=wEk9IPGQwg4&list=PLyx6PxqS5pZ5c0ZQkjKCWe2286lkeXFXk)
