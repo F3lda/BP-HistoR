@@ -9,7 +9,7 @@ Invasive ESP32-based solution for playing Internet audio streams on vintage radi
 
 ## Start
 - Connect to the ESP32 via a browser by entering its IP address or via its Wi-Fi hotspot.
-- Add your URL audio streams at different capacitor tuning values.
+- Add your URL audio streams at different tuning capacitor values.
 - Listen!
 
 ## Video
